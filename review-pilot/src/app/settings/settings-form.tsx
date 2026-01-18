@@ -19,10 +19,19 @@ export function SettingsForm({ initialData }: SettingsFormProps) {
     const [isPending, startTransition] = useTransition();
     const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
     const [threshold, setThreshold] = useState(initialData?.autoReplyThreshold || 4);
+    const [businessName, setBusinessName] = useState(initialData?.businessName || 'Acme Corp');
+    const [aiTone, setAiTone] = useState(initialData?.aiTone || 'professional');
 
-    async function handleSubmit(formData: FormData) {
-        // Append the controlled state for threshold since it's not a standard input
+    async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+        e.preventDefault();
+        const formData = new FormData(e.currentTarget);
+
+        // Append controlled state values explicitly (though e.currentTarget likely has them if inputs have names)
+        // Except for threshold which is a button group and needs manual append if not using hidden input
+        // We have hidden input for threshold, so formData should have it, but for safety with controlled overrides:
         formData.set('autoReplyThreshold', threshold.toString());
+        formData.set('businessName', businessName);
+        formData.set('aiTone', aiTone);
 
         startTransition(async () => {
             const result = await updateSettings(formData);
@@ -37,7 +46,7 @@ export function SettingsForm({ initialData }: SettingsFormProps) {
     }
 
     return (
-        <form action={handleSubmit} className="space-y-6 max-w-2xl">
+        <form onSubmit={handleSubmit} className="space-y-6 max-w-2xl">
             {/* Business Profile */}
             <Card>
                 <CardHeader>
@@ -50,7 +59,8 @@ export function SettingsForm({ initialData }: SettingsFormProps) {
                         <Input
                             id="businessName"
                             name="businessName"
-                            defaultValue={initialData?.businessName || 'Acme Corp'}
+                            value={businessName}
+                            onChange={(e) => setBusinessName(e.target.value)}
                             required
                         />
                     </div>
@@ -90,7 +100,8 @@ export function SettingsForm({ initialData }: SettingsFormProps) {
                             id="aiTone"
                             name="aiTone"
                             className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                            defaultValue={initialData?.aiTone || 'professional'}
+                            value={aiTone}
+                            onChange={(e) => setAiTone(e.target.value)}
                         >
                             <option value="professional">Professional</option>
                             <option value="friendly">Friendly</option>
