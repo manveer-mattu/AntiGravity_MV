@@ -7,6 +7,7 @@ import { GoogleReview } from '@/lib/google-business-mock';
 import { getReviews } from '@/app/actions/reviews';
 import { Star, MessageSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { motion, AnimatePresence } from 'framer-motion';
 
 import { SubscribeButton } from '@/components/subscribe-button';
 import Link from 'next/link';
@@ -62,6 +63,11 @@ export default function Dashboard() {
         if (newStatus === 'draft') {
             setRecentlyDrafted(prev => [...prev, reviewId]);
         }
+    };
+
+    const handleDismiss = (reviewId: string) => {
+        // Remove from recentlyDrafted to hide it from inbox view
+        setRecentlyDrafted(prev => prev.filter(id => id !== reviewId));
     };
 
     return (
@@ -163,13 +169,23 @@ export default function Dashboard() {
                                     'No reviews published yet.'}
                         </div>
                     ) : (
-                        filteredReviews.map((review) => (
-                            <ReviewCard
-                                key={review.id}
-                                review={review}
-                                onStatusChange={(newStatus, replyContent, isFallback) => handleStatusChange(review.id, newStatus, replyContent, isFallback)}
-                            />
-                        ))
+                        <AnimatePresence>
+                            {filteredReviews.map((review) => (
+                                <motion.div
+                                    key={review.id}
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, height: 0, overflow: 'hidden' }}
+                                    transition={{ duration: 0.2 }}
+                                >
+                                    <ReviewCard
+                                        review={review}
+                                        onStatusChange={(newStatus, replyContent, isFallback) => handleStatusChange(review.id, newStatus, replyContent, isFallback)}
+                                        onDismiss={() => handleDismiss(review.id)}
+                                    />
+                                </motion.div>
+                            ))}
+                        </AnimatePresence>
                     )}
                 </div>
             </main>
