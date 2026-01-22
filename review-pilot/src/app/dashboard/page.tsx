@@ -3,27 +3,48 @@
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { fetchMockReviews, GoogleReview } from '@/lib/google-business-mock';
+import { GoogleReview } from '@/lib/google-business-mock';
+import { getReviews } from '@/app/actions/reviews';
 import { Star, MessageSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 import { SubscribeButton } from '@/components/subscribe-button';
 import Link from 'next/link';
 
+import { ReviewCard } from '@/components/review-card';
+
 export default function Dashboard() {
     const [reviews, setReviews] = useState<GoogleReview[]>([]);
     const [loading, setLoading] = useState(true);
+    const [activeTab, setActiveTab] = useState<'inbox' | 'drafts' | 'published'>('inbox');
 
     useEffect(() => {
-        fetchMockReviews().then((data) => {
+        getReviews().then((data) => {
             setReviews(data);
             setLoading(false);
         });
     }, []);
 
-    const pendingCount = reviews.filter((r) => r.status === 'pending').length;
+    const pendingCount = reviews.filter((r) => r.status === 'pending' || !r.status).length;
+    const draftCount = reviews.filter((r) => r.status === 'draft').length;
     const avgRating =
         reviews.reduce((acc, r) => acc + r.starRating, 0) / reviews.length || 0;
+
+    const filteredReviews = reviews.filter(r => {
+        if (activeTab === 'inbox') return r.status === 'pending' || !r.status; // Default to pending if missing
+        if (activeTab === 'drafts') return r.status === 'draft';
+        if (activeTab === 'published') return r.status === 'replied';
+        return true;
+    });
+
+    const handleStatusChange = (reviewId: string, newStatus: 'pending' | 'draft' | 'replied', replyContent?: string) => {
+        setReviews(prev => prev.map(r => {
+            if (r.id === reviewId) {
+                return { ...r, status: newStatus, replyContent: replyContent || r.replyContent };
+            }
+            return r;
+        }));
+    };
 
     return (
         <div className="flex min-h-screen bg-gray-50/50">
@@ -57,8 +78,8 @@ export default function Dashboard() {
                 </header>
 
                 {/* Stats Grid */}
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-8">
-                    <Card>
+                <div className="flex flex-wrap gap-4 mb-8">
+                    <Card className="flex-1 min-w-[200px] max-w-[260px]">
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-sm font-medium">
                                 Pending Reviews
@@ -72,7 +93,7 @@ export default function Dashboard() {
                             </p>
                         </CardContent>
                     </Card>
-                    <Card>
+                    <Card className="flex-1 min-w-[200px] max-w-[260px]">
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-sm font-medium">
                                 Average Rating
@@ -88,90 +109,52 @@ export default function Dashboard() {
                     </Card>
                 </div>
 
+                {/* Tabs */}
+                <div className="flex gap-2 mb-6 border-b pb-2">
+                    <button
+                        onClick={() => setActiveTab('inbox')}
+                        className={cn("px-4 py-2 font-medium text-sm transition-colors",
+                            activeTab === 'inbox' ? "border-b-2 border-primary text-primary" : "text-muted-foreground hover:text-foreground")}
+                    >
+                        Inbox ({pendingCount})
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('drafts')}
+                        className={cn("px-4 py-2 font-medium text-sm transition-colors",
+                            activeTab === 'drafts' ? "border-b-2 border-primary text-primary" : "text-muted-foreground hover:text-foreground")}
+                    >
+                        Drafts ({draftCount})
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('published')}
+                        className={cn("px-4 py-2 font-medium text-sm transition-colors",
+                            activeTab === 'published' ? "border-b-2 border-primary text-primary" : "text-muted-foreground hover:text-foreground")}
+                    >
+                        Published
+                    </button>
+                </div>
+
                 {/* Reviews List */}
                 <div className="space-y-4">
-                    <h3 className="text-xl font-semibold">Recent Reviews</h3>
                     {loading ? (
                         <div className="text-muted-foreground">Loading reviews...</div>
+                    ) : filteredReviews.length === 0 ? (
+                        <div className="text-center py-12 text-muted-foreground bg-white rounded-lg border border-dashed">
+                            {activeTab === 'inbox' ? 'No pending reviews! 🎉' :
+                                activeTab === 'drafts' ? 'No drafts waiting properly.' :
+                                    'No reviews published yet.'}
+                        </div>
                     ) : (
-                        reviews.map((review) => (
-                            <ReviewCard key={review.id} review={review} />
+                        filteredReviews.map((review) => (
+                            <ReviewCard
+                                key={review.id}
+                                review={review}
+                                onStatusChange={(newStatus, replyContent) => handleStatusChange(review.id, newStatus as any, replyContent)}
+                            />
                         ))
                     )}
                 </div>
             </main>
         </div>
     );
-}
-
-function ReviewCard({ review }: { review: GoogleReview }) {
-    const [generatedReply, setGeneratedReply] = useState<string | null>(review.replyContent || null);
-    const [isGenerating, setIsGenerating] = useState(false);
-
-    const handleGenerate = async () => {
-        setIsGenerating(true);
-        try {
-            const response = await fetch('/api/generate-reply', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    reviewerName: review.reviewerName,
-                    starRating: review.starRating,
-                    content: review.content
-                })
-            });
-
-            const data = await response.json();
-            if (data.reply) {
-                setGeneratedReply(data.reply);
-            }
-        } catch (error) {
-            console.error("Failed to generate", error);
-        } finally {
-            setIsGenerating(false);
-        }
-    };
-
-    return (
-        <Card>
-            <CardContent className="p-6">
-                <div className="flex justify-between items-start mb-4">
-                    <div>
-                        <div className="font-semibold">{review.reviewerName}</div>
-                        <div className="flex items-center gap-1 mt-1">
-                            {Array.from({ length: 5 }).map((_, i) => (
-                                <Star
-                                    key={i}
-                                    className={cn(
-                                        "h-4 w-4",
-                                        i < review.starRating ? "text-yellow-500 fill-yellow-500" : "text-gray-300"
-                                    )}
-                                />
-                            ))}
-                        </div>
-                    </div>
-                    <span className="text-xs text-muted-foreground">
-                        {new Date(review.postedAt).toLocaleDateString()}
-                    </span>
-                </div>
-
-                <p className="text-sm text-gray-700 mb-4">{review.content}</p>
-
-                {generatedReply ? (
-                    <div className="bg-muted p-4 rounded-md text-sm border-l-4 border-l-primary/50">
-                        <span className="font-semibold block mb-1 text-primary">Drafted Response:</span>
-                        <p className="italic text-gray-600 mb-3">{generatedReply}</p>
-                        <div className="flex gap-2">
-                            <Button size="sm">Post Reply</Button>
-                            <Button size="sm" variant="outline" onClick={() => setGeneratedReply(null)}>Discard</Button>
-                        </div>
-                    </div>
-                ) : (
-                    <Button onClick={handleGenerate} disabled={isGenerating}>
-                        {isGenerating ? "Drafting..." : "Generate AI Reply"}
-                    </Button>
-                )}
-            </CardContent>
-        </Card>
-    )
 }

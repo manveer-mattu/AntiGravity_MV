@@ -39,7 +39,7 @@ export default async function SettingsPage() {
     if (userId) {
         const { data } = await dbClient
             .from('businesses')
-            .select('business_name, auto_reply_threshold, ai_tone')
+            .select('business_name, auto_reply_threshold, ai_tone, business_context')
             .eq('user_id', userId)
             .single();
 
@@ -47,7 +47,8 @@ export default async function SettingsPage() {
             initialData = {
                 businessName: data.business_name,
                 autoReplyThreshold: data.auto_reply_threshold,
-                aiTone: data.ai_tone
+                aiTone: data.ai_tone,
+                businessContext: data.business_context
             };
         }
     }

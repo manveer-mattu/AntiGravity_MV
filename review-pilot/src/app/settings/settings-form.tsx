@@ -12,6 +12,7 @@ interface SettingsFormProps {
         businessName: string;
         autoReplyThreshold: number;
         aiTone: string;
+        businessContext: string | null;
     } | null;
 }
 
@@ -21,6 +22,7 @@ export function SettingsForm({ initialData }: SettingsFormProps) {
     const [threshold, setThreshold] = useState(initialData?.autoReplyThreshold || 4);
     const [businessName, setBusinessName] = useState(initialData?.businessName || 'Acme Corp');
     const [aiTone, setAiTone] = useState(initialData?.aiTone || 'professional');
+    const [businessContext, setBusinessContext] = useState(initialData?.businessContext || '');
 
     async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault();
@@ -32,6 +34,7 @@ export function SettingsForm({ initialData }: SettingsFormProps) {
         formData.set('autoReplyThreshold', threshold.toString());
         formData.set('businessName', businessName);
         formData.set('aiTone', aiTone);
+        formData.set('businessContext', businessContext);
 
         startTransition(async () => {
             const result = await updateSettings(formData);
@@ -103,10 +106,21 @@ export function SettingsForm({ initialData }: SettingsFormProps) {
                             value={aiTone}
                             onChange={(e) => setAiTone(e.target.value)}
                         >
-                            <option value="professional">Professional</option>
-                            <option value="friendly">Friendly</option>
                             <option value="empathetic">Empathetic</option>
                         </select>
+                    </div>
+
+                    <div className="space-y-2 pt-2">
+                        <label htmlFor="businessContext" className="text-sm font-medium">Business Knowledge Base</label>
+                        <p className="text-xs text-muted-foreground">Add specific facts about your business (e.g., "We are closed on Mondays", "Mention our 10% discount").</p>
+                        <textarea
+                            id="businessContext"
+                            name="businessContext"
+                            className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                            value={businessContext}
+                            onChange={(e) => setBusinessContext(e.target.value)}
+                            placeholder="e.g., We are a family-owned Italian restaurant established in 1985..."
+                        />
                     </div>
 
                     <div className="space-y-2 pt-4 flex items-center gap-4">

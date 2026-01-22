@@ -71,6 +71,7 @@ export async function updateSettings(formData: FormData) {
     const businessName = formData.get('businessName') as string;
     const autoReplyThreshold = parseInt(formData.get('autoReplyThreshold') as string);
     const aiTone = formData.get('aiTone') as string;
+    const businessContext = formData.get('businessContext') as string;
 
     // 3. Perform the DB Operation using the appropriate client
     // Check if a business entry exists for this user
@@ -84,7 +85,8 @@ export async function updateSettings(formData: FormData) {
             .update({
                 business_name: businessName,
                 auto_reply_threshold: autoReplyThreshold,
-                ai_tone: aiTone
+                ai_tone: aiTone,
+                business_context: businessContext
             })
             .eq('id', existing.id);
     } else {
@@ -95,7 +97,8 @@ export async function updateSettings(formData: FormData) {
                 user_id: userId,
                 business_name: businessName,
                 auto_reply_threshold: autoReplyThreshold || 4,
-                ai_tone: aiTone || 'professional'
+                ai_tone: aiTone || 'professional',
+                business_context: businessContext || ''
             });
     }
 

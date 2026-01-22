@@ -25,6 +25,7 @@ create table public.businesses (
   google_place_id text, -- Can be a simulated ID for MVP
   auto_reply_threshold integer default 4,
   ai_tone text default 'professional',
+  business_context text,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
@@ -43,7 +44,7 @@ create table public.reviews (
   star_rating integer not null check (star_rating >= 1 and star_rating <= 5),
   content text,
   reply_content text,
-  status text default 'pending', -- 'pending', 'replied'
+  status text default 'pending', -- 'pending', 'draft', 'applied' (replied) or just 'replied'
   posted_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 

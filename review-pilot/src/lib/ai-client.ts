@@ -1,13 +1,17 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GENERATIVE_AI_API_KEY!);
-
 export async function generateReviewReply(
     reviewerName: string,
     starRating: number,
-    reviewContent: string
+    reviewContent: string,
+    businessContext?: string
 ): Promise<string> {
-    const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
+    const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+    if (!apiKey) {
+        throw new Error("GOOGLE_GENERATIVE_AI_API_KEY is not set");
+    }
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
 
     const tone = starRating >= 4 ? "grateful and professional" : "empathetic, apologetic, and professional";
 
@@ -18,6 +22,7 @@ export async function generateReviewReply(
     Reviewer: ${reviewerName}
     Rating: ${starRating}/5 Stars
     Review: "${reviewContent}"
+    ${businessContext ? `\nBusiness Context/Knowledge Base:\n"${businessContext}"\nUse this context to personalize the reply where relevant.` : ''}
     
     Instructions:
     - Tone: ${tone}

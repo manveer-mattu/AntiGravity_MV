@@ -1,4 +1,4 @@
-export type ReviewStatus = 'pending' | 'replied';
+export type ReviewStatus = 'pending' | 'draft' | 'replied';
 
 export interface GoogleReview {
     id: string;
@@ -26,6 +26,15 @@ const MOCK_REVIEWS: GoogleReview[] = [
         content: 'Waited for 30 minutes and no one showed up. Very disappointed.',
         status: 'pending',
         postedAt: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(), // 1 day ago
+    },
+    {
+        id: '4',
+        reviewerName: 'Tom Wilson',
+        starRating: 3,
+        content: 'Food was good but service was slow.',
+        replyContent: 'Hi Tom, sorry about the wait. We are training new staff.',
+        status: 'draft',
+        postedAt: new Date(Date.now() - 1000 * 60 * 60 * 12).toISOString(), // 12 hours ago
     },
     {
         id: '3',
