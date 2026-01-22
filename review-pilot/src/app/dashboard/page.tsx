@@ -17,6 +17,7 @@ export default function Dashboard() {
     const [reviews, setReviews] = useState<GoogleReview[]>([]);
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<'inbox' | 'drafts' | 'published'>('inbox');
+    const [recentlyDrafted, setRecentlyDrafted] = useState<string[]>([]);
 
     useEffect(() => {
         getReviews().then((data) => {
@@ -25,25 +26,42 @@ export default function Dashboard() {
         });
     }, []);
 
+    // Clear recently drafted when switching tabs
+    useEffect(() => {
+        setRecentlyDrafted([]);
+    }, [activeTab]);
+
     const pendingCount = reviews.filter((r) => r.status === 'pending' || !r.status).length;
     const draftCount = reviews.filter((r) => r.status === 'draft').length;
     const avgRating =
         reviews.reduce((acc, r) => acc + r.starRating, 0) / reviews.length || 0;
 
     const filteredReviews = reviews.filter(r => {
-        if (activeTab === 'inbox') return r.status === 'pending' || !r.status; // Default to pending if missing
+        if (activeTab === 'inbox') {
+            // Show pending items OR items that were just drafted in this session (so they don't disappear)
+            return r.status === 'pending' || !r.status || (r.status === 'draft' && recentlyDrafted.includes(r.id));
+        }
         if (activeTab === 'drafts') return r.status === 'draft';
         if (activeTab === 'published') return r.status === 'replied';
         return true;
     });
 
-    const handleStatusChange = (reviewId: string, newStatus: 'pending' | 'draft' | 'replied', replyContent?: string) => {
+    const handleStatusChange = (reviewId: string, newStatus: 'pending' | 'draft' | 'replied', replyContent?: string, isFallback?: boolean) => {
         setReviews(prev => prev.map(r => {
             if (r.id === reviewId) {
-                return { ...r, status: newStatus, replyContent: replyContent || r.replyContent };
+                return {
+                    ...r,
+                    status: newStatus,
+                    replyContent: replyContent || r.replyContent,
+                    isFallback: isFallback !== undefined ? isFallback : r.isFallback
+                };
             }
             return r;
         }));
+
+        if (newStatus === 'draft') {
+            setRecentlyDrafted(prev => [...prev, reviewId]);
+        }
     };
 
     return (
@@ -149,7 +167,7 @@ export default function Dashboard() {
                             <ReviewCard
                                 key={review.id}
                                 review={review}
-                                onStatusChange={(newStatus, replyContent) => handleStatusChange(review.id, newStatus as any, replyContent)}
+                                onStatusChange={(newStatus, replyContent, isFallback) => handleStatusChange(review.id, newStatus, replyContent, isFallback)}
                             />
                         ))
                     )}

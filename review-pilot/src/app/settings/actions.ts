@@ -72,6 +72,8 @@ export async function updateSettings(formData: FormData) {
     const autoReplyThreshold = parseInt(formData.get('autoReplyThreshold') as string);
     const aiTone = formData.get('aiTone') as string;
     const businessContext = formData.get('businessContext') as string;
+    const knowledgeBaseRaw = formData.get('knowledgeBase') as string;
+    const knowledgeBase = knowledgeBaseRaw ? JSON.parse(knowledgeBaseRaw) : {};
 
     // 3. Perform the DB Operation using the appropriate client
     // Check if a business entry exists for this user
@@ -86,7 +88,9 @@ export async function updateSettings(formData: FormData) {
                 business_name: businessName,
                 auto_reply_threshold: autoReplyThreshold,
                 ai_tone: aiTone,
-                business_context: businessContext
+                business_context: businessContext, // Keep legacy for now or clear it? Let's keep it sync'd if possible or just ignore. 
+                // Actually, settings-form sends it. But let's mainly rely on new column.
+                knowledge_base: knowledgeBase
             })
             .eq('id', existing.id);
     } else {
@@ -98,7 +102,8 @@ export async function updateSettings(formData: FormData) {
                 business_name: businessName,
                 auto_reply_threshold: autoReplyThreshold || 4,
                 ai_tone: aiTone || 'professional',
-                business_context: businessContext || ''
+                business_context: businessContext || '',
+                knowledge_base: knowledgeBase || {}
             });
     }
 

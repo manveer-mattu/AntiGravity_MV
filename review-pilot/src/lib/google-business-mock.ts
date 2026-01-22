@@ -8,6 +8,7 @@ export interface GoogleReview {
     replyContent?: string;
     status: ReviewStatus;
     postedAt: string;
+    isFallback?: boolean;
 }
 
 const MOCK_REVIEWS: GoogleReview[] = [

@@ -5,9 +5,9 @@ export async function POST(request: Request) {
     try {
         const { reviewId, replyContent, status } = await request.json();
 
-        if (!reviewId || !replyContent) {
+        if (!reviewId) {
             return NextResponse.json(
-                { error: "Missing reviewId or replyContent" },
+                { error: "Missing reviewId" },
                 { status: 400 }
             );
         }

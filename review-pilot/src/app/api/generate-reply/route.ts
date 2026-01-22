@@ -23,6 +23,7 @@ export async function POST(request: Request) {
         // We can optimize this by caching or just querying business directly if we knew ID, 
         // but finding by user email is consistent with our other logic
         let businessContext = "";
+        let preferredTone: string | undefined = undefined;
 
         // Quick fetch - query businesses directly for the mock user if we can find them, 
         // or just getAll for MVP since there's likely only 1 or few.
@@ -33,18 +34,28 @@ export async function POST(request: Request) {
         if (mockUser) {
             const { data: business } = await adminClient
                 .from('businesses')
-                .select('business_context')
+                .select('business_context, ai_tone, knowledge_base')
                 .eq('user_id', mockUser.id)
                 .single();
 
-            if (business?.business_context) {
-                businessContext = business.business_context;
+            if (business) {
+                if (business.business_context) businessContext = business.business_context;
+                if (business.ai_tone) preferredTone = business.ai_tone;
+                // Add validation to ensure it matches the type if needed, but JSONB usually comes as any
+                var knowledgeBase = business.knowledge_base;
             }
         }
 
-        const reply = await generateReviewReply(reviewerName, starRating, content, businessContext);
+        const { reply, isFallback } = await generateReviewReply(
+            reviewerName,
+            starRating,
+            content,
+            businessContext,
+            preferredTone,
+            knowledgeBase
+        );
 
-        return NextResponse.json({ reply });
+        return NextResponse.json({ reply, isFallback });
     } catch (error) {
         console.error("Error in /api/generate-reply:", error);
         return NextResponse.json(

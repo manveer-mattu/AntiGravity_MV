@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Star } from 'lucide-react';
@@ -12,7 +13,7 @@ import { Textarea } from '@/components/ui/textarea'; // Assuming we have this, o
 // Ideally we move types to types.ts
 interface ReviewCardProps {
     review: GoogleReview;
-    onStatusChange?: () => void; // Callback to refresh list
+    onStatusChange?: (status: 'pending' | 'draft' | 'replied', replyContent?: string, isFallback?: boolean) => void;
 }
 
 export function ReviewCard({ review, onStatusChange }: ReviewCardProps) {
@@ -21,6 +22,8 @@ export function ReviewCard({ review, onStatusChange }: ReviewCardProps) {
     const [status, setStatus] = useState(review.status || 'pending');
     const [isEditing, setIsEditing] = useState(false);
     const [draftText, setDraftText] = useState(review.replyContent || '');
+    const [isFallback, setIsFallback] = useState(review.isFallback || false);
+    const [isDiscarding, setIsDiscarding] = useState(false);
 
     // Sync state with props if they change externally (e.g. filtered list updates)
     useEffect(() => {
@@ -29,10 +32,14 @@ export function ReviewCard({ review, onStatusChange }: ReviewCardProps) {
             setGeneratedReply(review.replyContent);
             setDraftText(review.replyContent);
         }
-    }, [review.status, review.replyContent]);
+        if (review.isFallback !== undefined) {
+            setIsFallback(review.isFallback);
+        }
+    }, [review.status, review.replyContent, review.isFallback]);
 
     const handleGenerate = async () => {
         setIsGenerating(true);
+        setIsDiscarding(false);
         try {
             const response = await fetch('/api/generate-reply', {
                 method: 'POST',
@@ -48,6 +55,7 @@ export function ReviewCard({ review, onStatusChange }: ReviewCardProps) {
             if (data.reply) {
                 setGeneratedReply(data.reply);
                 setDraftText(data.reply);
+                setIsFallback(data.isFallback || false);
                 setStatus('draft');
 
                 // Save as draft immediately
@@ -61,7 +69,7 @@ export function ReviewCard({ review, onStatusChange }: ReviewCardProps) {
                     })
                 });
 
-                if (onStatusChange) onStatusChange();
+                if (onStatusChange) onStatusChange('draft', data.reply, data.isFallback);
             }
         } catch (error) {
             console.error("Failed to generate", error);
@@ -85,7 +93,7 @@ export function ReviewCard({ review, onStatusChange }: ReviewCardProps) {
         setStatus('replied');
         setGeneratedReply(draftText);
         setIsEditing(false);
-        if (onStatusChange) onStatusChange();
+        if (onStatusChange) onStatusChange('replied', draftText);
     };
 
     return (
@@ -124,76 +132,100 @@ export function ReviewCard({ review, onStatusChange }: ReviewCardProps) {
                 <p className="text-sm text-gray-700 mb-4">{review.content}</p>
 
                 {/* DRAFT STATE or REPLIED STATE */}
-                {status === 'draft' || status === 'replied' ? (
-                    <div className={cn(
-                        "p-4 rounded-md text-sm border-l-4",
-                        status === 'replied' ? "bg-green-50 border-l-green-500" : "bg-primary/5 border-l-primary/50"
-                    )}>
-                        <div className="flex justify-between items-center mb-2">
-                            <span className="font-semibold text-primary/80">
-                                {status === 'replied' ? 'Published Response:' : 'Draft Response:'}
-                            </span>
-                            {status === 'draft' && !isEditing && (
-                                <Button variant="ghost" size="sm" onClick={() => setIsEditing(true)}>Edit</Button>
-                            )}
-                        </div>
-
-                        {isEditing ? (
-                            <div className="space-y-3">
-                                <Textarea
-                                    value={draftText}
-                                    onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setDraftText(e.target.value)}
-                                    className="bg-white"
-                                />
-                                <div className="flex gap-2">
-                                    <Button size="sm" onClick={async () => {
-                                        setIsEditing(false);
-                                        await fetch('/api/save-reply', {
-                                            method: 'POST',
-                                            headers: { 'Content-Type': 'application/json' },
-                                            body: JSON.stringify({
-                                                reviewId: review.id,
-                                                replyContent: draftText,
-                                                status: 'draft'
-                                            })
-                                        });
-                                        if (onStatusChange) onStatusChange();
-                                    }}>Save Draft</Button>
-                                    <Button size="sm" onClick={handlePost}>Approve & Post</Button>
+                <AnimatePresence mode="wait">
+                    {status === 'draft' || status === 'replied' ? (
+                        <motion.div
+                            key="reply-box"
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            transition={{ duration: 0.2, ease: "easeOut" }}
+                            className={cn(
+                                "p-4 rounded-md text-sm border-l-4",
+                                status === 'replied' ? "bg-green-50 border-l-green-500" : "bg-primary/5 border-l-primary/50"
+                            )}>
+                            <div className="flex justify-between items-center mb-2">
+                                <div className="flex items-center gap-2">
+                                    <span className="font-semibold text-primary/80">
+                                        {status === 'replied' ? 'Published Response:' : 'Draft Response:'}
+                                    </span>
+                                    {isFallback && (
+                                        <span className="text-[10px] bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full font-medium border border-orange-200">
+                                            Template Mode (AI Busy)
+                                        </span>
+                                    )}
                                 </div>
+                                {status === 'draft' && !isEditing && (
+                                    <Button variant="ghost" size="sm" onClick={() => setIsEditing(true)}>Edit</Button>
+                                )}
                             </div>
-                        ) : (
-                            <div className="space-y-3">
-                                <p className="italic text-gray-600 space-y-2 whitespace-pre-wrap">{draftText || generatedReply}</p>
-                                {status === 'draft' && (
+
+                            {isEditing ? (
+                                <div className="space-y-3">
+                                    <Textarea
+                                        value={draftText}
+                                        onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setDraftText(e.target.value)}
+                                        className="bg-white"
+                                    />
                                     <div className="flex gap-2">
-                                        <Button size="sm" onClick={handlePost}>Approve & Post</Button>
-                                        <Button size="sm" variant="outline" onClick={async () => {
-                                            setStatus('pending');
-                                            setGeneratedReply(null);
-                                            // Reset in DB
+                                        <Button size="sm" onClick={async () => {
+                                            setIsEditing(false);
                                             await fetch('/api/save-reply', {
                                                 method: 'POST',
                                                 headers: { 'Content-Type': 'application/json' },
                                                 body: JSON.stringify({
                                                     reviewId: review.id,
-                                                    replyContent: null, // Clear content or keep it? Let's clear for now.
-                                                    status: 'pending'
+                                                    replyContent: draftText,
+                                                    status: 'draft'
                                                 })
                                             });
-                                            if (onStatusChange) onStatusChange();
-                                        }}>Discard</Button>
+                                            if (onStatusChange) onStatusChange('draft', draftText);
+                                        }}>Save Draft</Button>
+                                        <Button size="sm" onClick={handlePost}>Approve & Post</Button>
                                     </div>
-                                )}
-                            </div>
-                        )}
-                    </div>
-                ) : (
-                    // PENDING STATE
-                    <Button onClick={handleGenerate} disabled={isGenerating}>
-                        {isGenerating ? "Drafting..." : "Generate AI Reply"}
-                    </Button>
-                )}
+                                </div>
+                            ) : (
+                                <div className="space-y-3">
+                                    <p className="italic text-gray-600 space-y-2 whitespace-pre-wrap">{draftText || generatedReply}</p>
+                                    {status === 'draft' && (
+                                        <div className="flex gap-2">
+                                            <Button size="sm" onClick={handlePost}>Approve & Post</Button>
+                                            <Button size="sm" variant="outline" onClick={async () => {
+                                                setIsDiscarding(true);
+                                                setStatus('pending');
+                                                setGeneratedReply(null);
+                                                // Reset in DB
+                                                await fetch('/api/save-reply', {
+                                                    method: 'POST',
+                                                    headers: { 'Content-Type': 'application/json' },
+                                                    body: JSON.stringify({
+                                                        reviewId: review.id,
+                                                        replyContent: null,
+                                                        status: 'pending'
+                                                    })
+                                                });
+                                                if (onStatusChange) onStatusChange('pending', '');
+                                            }}>Discard</Button>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </motion.div>
+                    ) : (
+                        // PENDING STATE
+                        <motion.div
+                            key="generate-button"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.2 }}
+                        >
+                            <Button onClick={handleGenerate} disabled={isGenerating}>
+                                {isGenerating ? "Drafting..." : "Generate AI Reply"}
+                            </Button>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </CardContent>
         </Card>
     )
