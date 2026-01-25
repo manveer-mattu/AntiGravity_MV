@@ -1,12 +1,23 @@
 'use server';
 
 import { createClient } from '@supabase/supabase-js';
-import { GoogleReview } from '@/lib/google-business-mock';
+import { GoogleReview, fetchMockReviews, ReviewStatus } from '@/lib/google-business-mock';
 
 // Define the shape if not perfectly matching GoogleReview, but it should be close.
 // We will return GoogleReview[] to match the frontend expectation.
 
 export async function getReviews(): Promise<GoogleReview[]> {
+    // For the BI integration demo, we are using the enhanced mock data
+    // which contains sentiment and topics.
+    // In a real scenario, this would fetch from Supabase and we'd need to add those columns.
+
+    // Check if we want to force use the mock for development of this feature
+    const useMock = true;
+
+    if (useMock) {
+        return fetchMockReviews();
+    }
+
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
     const adminClient = createClient(supabaseUrl, serviceKey);
@@ -102,14 +113,25 @@ export async function getReviews(): Promise<GoogleReview[]> {
     return reviews.map(mapDbReviewToFrontend);
 }
 
-function mapDbReviewToFrontend(dbReview: any): GoogleReview {
+interface DbReview {
+    id: string;
+    reviewer_name: string;
+    star_rating: number;
+    content: string;
+    reply_content?: string | null;
+    status: string;
+    posted_at: string;
+    [key: string]: unknown; // Allow other properties if needed
+}
+
+function mapDbReviewToFrontend(dbReview: DbReview): GoogleReview {
     return {
         id: dbReview.id,
         reviewerName: dbReview.reviewer_name,
         starRating: dbReview.star_rating,
         content: dbReview.content,
         replyContent: dbReview.reply_content || undefined,
-        status: dbReview.status as any,
+        status: dbReview.status as ReviewStatus,
         postedAt: dbReview.posted_at
     };
 }

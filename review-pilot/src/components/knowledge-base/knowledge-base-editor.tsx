@@ -1,15 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Plus, Trash2, Info } from 'lucide-react';
-import { Label } from '@/components/ui/label';
 import { KnowledgeBase } from '@/types';
+import { FactCard } from './fact-card';
+import { SmartIngestor } from './smart-ingestor';
+import { SimulationPreview } from './simulation-preview';
+import { GeoHealthWidget } from './geo-health';
+import { Users, MapPin, Shield } from 'lucide-react';
 
 interface KnowledgeBaseEditorProps {
     initialData: KnowledgeBase;
@@ -17,235 +14,205 @@ interface KnowledgeBaseEditorProps {
 }
 
 export function KnowledgeBaseEditor({ initialData, onChange }: KnowledgeBaseEditorProps) {
-    const [data, setData] = useState<KnowledgeBase>(initialData || { general: {}, playbook: [] });
+    // Initialize with mock data if no initial data
+    const [data, setData] = useState<KnowledgeBase>(() => {
+        if (!initialData || Object.keys(initialData).length === 0) {
+            // Return mock data with proper IDs
+            return {
+                team: [{
+                    id: 'mock-team-1',
+                    name: 'Chef Marco',
+                    role: 'Head Chef',
+                    context: '15 years exp. Specialized in handmade pasta.',
+                    isPublic: true
+                }],
+                geoKeywords: [
+                    {
+                        id: 'mock-geo-1',
+                        keyword: 'Best Coffee Shoreditch',
+                        priority: 'high' as const
+                    },
+                    {
+                        id: 'mock-geo-2',
+                        keyword: 'Free Wi-Fi Cafe',
+                        priority: 'medium' as const
+                    }
+                ],
+                general: {
+                    policies: ['Pet Friendly - Dogs allowed on patio only.']
+                }
+            };
+        }
+        return initialData;
+    });
 
-    const handleUpdate = (newData: KnowledgeBase) => {
+    // Mock handler for adding new facts from Ingestor
+    const handleAddFact = (fact: { type: string; title?: string; subtitle?: string; status: string }) => {
+        // In a real implementation, we would update the specific array in 'data' based on fact.type
+        // For MVP demo, we'll just log or simplistic state update if needed
+        console.log("Added fact:", fact);
+
+        // Example: Add to team if type is team
+        if (fact.type === 'team') {
+            const newTeam = [...(data.team || []), {
+                id: Date.now().toString(),
+                name: 'New Member',
+                role: 'Staff',
+                context: fact.subtitle,
+                isPublic: true
+            }];
+            const newData = { ...data, team: newTeam };
+            setData(newData);
+            onChange(newData);
+        }
+        if (fact.type === 'geo') {
+            const newGeo = [...(data.geoKeywords || []), {
+                id: Date.now().toString(),
+                keyword: fact.title || '',
+                priority: 'high' as const // explicit cast for TS
+            }];
+            const newData = { ...data, geoKeywords: newGeo };
+            setData(newData);
+            onChange(newData);
+        }
+        if (fact.type === 'policy') {
+            const newGeneral = {
+                ...data.general,
+                policies: [...(data.general?.policies || []), fact.subtitle || '']
+            };
+            const newData = { ...data, general: newGeneral };
+            setData(newData);
+            onChange(newData);
+        }
+    };
+
+    const handleDeleteTeam = (id: string) => {
+        const newTeam = data.team?.filter(m => m.id !== id);
+        const newData = { ...data, team: newTeam };
         setData(newData);
         onChange(newData);
     };
 
-    // Helper to add item to a general category
-    const addGeneralItem = (category: keyof NonNullable<KnowledgeBase['general']>) => {
-        const currentItems = data.general?.[category] as string[] || [];
-        const newGeneral = {
-            ...data.general,
-            [category]: [...currentItems, '']
-        };
-        handleUpdate({ ...data, general: newGeneral });
+    const handleDeleteGeo = (id: string) => {
+        const newGeo = data.geoKeywords?.filter(k => k.id !== id);
+        const newData = { ...data, geoKeywords: newGeo };
+        setData(newData);
+        onChange(newData);
     };
 
-    // Helper to update item in a general category
-    const updateGeneralItem = (category: keyof NonNullable<KnowledgeBase['general']>, index: number, value: string) => {
-        const currentItems = [...(data.general?.[category] as string[] || [])];
-        currentItems[index] = value;
-        const newGeneral = {
-            ...data.general,
-            [category]: currentItems
-        };
-        handleUpdate({ ...data, general: newGeneral });
-    };
-
-    // Helper to remove item
-    const removeGeneralItem = (category: keyof NonNullable<KnowledgeBase['general']>, index: number) => {
-        const currentItems = [...(data.general?.[category] as string[] || [])];
-        currentItems.splice(index, 1);
-        const newGeneral = {
-            ...data.general,
-            [category]: currentItems
-        };
-        handleUpdate({ ...data, general: newGeneral });
-    };
-
-    // Playbook Helpers
-    const addPlaybookItem = () => {
-        const currentPlaybook = data.playbook || [];
-        handleUpdate({
-            ...data,
-            playbook: [...currentPlaybook, { trigger: '', response: '' }]
-        });
-    };
-
-    const updatePlaybookItem = (index: number, field: 'trigger' | 'response', value: string) => {
-        const currentPlaybook = [...(data.playbook || [])];
-        currentPlaybook[index] = { ...currentPlaybook[index], [field]: value };
-        handleUpdate({ ...data, playbook: currentPlaybook });
-    };
-
-    const removePlaybookItem = (index: number) => {
-        const currentPlaybook = [...(data.playbook || [])];
-        currentPlaybook.splice(index, 1);
-        handleUpdate({ ...data, playbook: currentPlaybook });
+    const handleDeletePolicy = (index: number, isService: boolean) => {
+        const newGeneral = { ...data.general };
+        if (isService) {
+            newGeneral.services = data.general?.services?.filter((_, i) => i !== index);
+        } else {
+            newGeneral.policies = data.general?.policies?.filter((_, i) => i !== index);
+        }
+        const newData = { ...data, general: newGeneral };
+        setData(newData);
+        onChange(newData);
     };
 
     return (
-        <div className="space-y-4">
-            <input type="hidden" name="knowledgeBase" value={JSON.stringify(data)} />
+        <div className="flex h-[calc(100vh-100px)] gap-6">
 
-            <Tabs defaultValue="general" className="w-full">
-                <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="general">General Info</TabsTrigger>
-                    <TabsTrigger value="playbook">Response Playbook</TabsTrigger>
-                </TabsList>
+            {/* Main Content Area (Left) */}
+            <div className="flex-1 space-y-8 overflow-y-auto pr-2">
 
-                {/* GENERAL INFO TAB */}
-                <TabsContent value="general" className="space-y-4 mt-4">
-                    <div className="bg-muted/50 p-4 rounded-md border text-sm text-muted-foreground mb-4">
-                        <p>Add factual details about your business. The AI uses these to answer customer questions accurately.</p>
+                {/* Header Section */}
+                <div className="flex justify-between items-end">
+                    <div>
+                        <h2 className="text-2xl font-semibold tracking-tight text-gray-900">Brand DNA</h2>
+                        <p className="text-muted-foreground mt-1">Manage the facts that power your AI&apos;s local authority.</p>
                     </div>
+                    <SmartIngestor onAddFact={handleAddFact} />
+                </div>
 
-                    {/* About Section */}
-                    <div className="space-y-2">
-                        <Label>General Business Information</Label>
-                        <Textarea
-                            placeholder="Briefly describe your business (e.g. A family-owned Italian restaurant in downtown Chicago...)"
-                            value={data.general?.about || ''}
-                            onChange={(e) => handleUpdate({
-                                ...data,
-                                general: { ...data.general, about: e.target.value }
-                            })}
-                        />
+                {/* Dashboard Widgets Row */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="md:col-span-2">
+                        <GeoHealthWidget />
                     </div>
+                    {/* Placeholder for other stats */}
+                </div>
 
-                    {/* Always Mention Section */}
-                    <div className="space-y-2">
-                        <Label>Mandatory Inclusions (Mentioned in every reply)</Label>
-                        <Input
-                            placeholder="e.g. Sign off with 'Stay cool!'"
-                            value={data.general?.alwaysMention || ''}
-                            onChange={(e) => handleUpdate({
-                                ...data,
-                                general: { ...data.general, alwaysMention: e.target.value }
-                            })}
-                        />
-                        <p className="text-xs text-muted-foreground">This content will be prioritized in every response.</p>
-                    </div>
+                {/* Fact Grid Sections */}
+                <div className="space-y-6">
 
-                    <Accordion type="single" collapsible defaultValue="hours" className="w-full">
-
-                        {/* Hours Section */}
-                        <AccordionItem value="hours">
-                            <AccordionTrigger>Hours & Availability</AccordionTrigger>
-                            <AccordionContent className="space-y-3 pt-2">
-                                {(data.general?.hours || []).map((item, idx) => (
-                                    <div key={idx} className="flex gap-2">
-                                        <Input
-                                            value={item}
-                                            onChange={(e) => updateGeneralItem('hours', idx, e.target.value)}
-                                            placeholder="e.g. Open Mon-Fri 9am-5pm"
-                                        />
-                                        <Button variant="ghost" size="icon" onClick={() => removeGeneralItem('hours', idx)} type="button">
-                                            <Trash2 className="h-4 w-4" />
-                                        </Button>
-                                    </div>
-                                ))}
-                                <Button variant="outline" size="sm" onClick={() => addGeneralItem('hours')} type="button" className="mt-2">
-                                    <Plus className="h-4 w-4 mr-2" /> Add Hours Info
-                                </Button>
-                            </AccordionContent>
-                        </AccordionItem>
-
-                        {/* Services Section */}
-                        <AccordionItem value="services">
-                            <AccordionTrigger>Services & Amenities</AccordionTrigger>
-                            <AccordionContent className="space-y-3 pt-2">
-                                {(data.general?.services || []).map((item, idx) => (
-                                    <div key={idx} className="flex gap-2">
-                                        <Input
-                                            value={item}
-                                            onChange={(e) => updateGeneralItem('services', idx, e.target.value)}
-                                            placeholder="e.g. Free Wi-Fi available"
-                                        />
-                                        <Button variant="ghost" size="icon" onClick={() => removeGeneralItem('services', idx)} type="button">
-                                            <Trash2 className="h-4 w-4" />
-                                        </Button>
-                                    </div>
-                                ))}
-                                <Button variant="outline" size="sm" onClick={() => addGeneralItem('services')} type="button" className="mt-2">
-                                    <Plus className="h-4 w-4 mr-2" /> Add Service Info
-                                </Button>
-                            </AccordionContent>
-                        </AccordionItem>
-
-                        {/* Policies Section */}
-                        <AccordionItem value="policies">
-                            <AccordionTrigger>Policies & Contact</AccordionTrigger>
-                            <AccordionContent className="space-y-3 pt-2">
-                                {(data.general?.policies || []).map((item, idx) => (
-                                    <div key={idx} className="flex gap-2">
-                                        <Input
-                                            value={item}
-                                            onChange={(e) => updateGeneralItem('policies', idx, e.target.value)}
-                                            placeholder="e.g. Reservations required for large groups"
-                                        />
-                                        <Button variant="ghost" size="icon" onClick={() => removeGeneralItem('policies', idx)} type="button">
-                                            <Trash2 className="h-4 w-4" />
-                                        </Button>
-                                    </div>
-                                ))}
-                                <Button variant="outline" size="sm" onClick={() => addGeneralItem('policies')} type="button" className="mt-2">
-                                    <Plus className="h-4 w-4 mr-2" /> Add Policy Info
-                                </Button>
-                            </AccordionContent>
-                        </AccordionItem>
-                    </Accordion>
-
-                    {/* Migration/Legacy Handling */}
-                    {data.general?.legacy && (
-                        <div className="mt-6 border-t pt-4">
-                            <Label className="text-muted-foreground">Legacy Notes (Unsorted)</Label>
-                            <Textarea
-                                value={data.general.legacy}
-                                onChange={(e) => handleUpdate({ ...data, general: { ...data.general, legacy: e.target.value } })}
-                                className="mt-2 text-muted-foreground"
-                            />
-                            <p className="text-xs text-muted-foreground mt-1">Move these into categories above for better results.</p>
+                    {/* Team Section */}
+                    <div className="space-y-3">
+                        <div className="flex items-center gap-2 text-sm font-semibold text-gray-700 uppercase tracking-wide">
+                            <Users className="h-4 w-4" /> Our Team
                         </div>
-                    )}
-                </TabsContent>
-
-                {/* PLAYBOOK TAB */}
-                <TabsContent value="playbook" className="space-y-4 mt-4">
-                    <div className="bg-muted/50 p-4 rounded-md border text-sm text-muted-foreground mb-4">
-                        <p>Teach the AI how to respond to specific topics. Set a trigger word/phrase and the desired response.</p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {data.team?.map((member) => (
+                                <FactCard
+                                    key={member.id}
+                                    type="team"
+                                    title={member.name}
+                                    subtitle={`${member.role} - ${member.context}`}
+                                    status="indexed"
+                                    onDelete={() => handleDeleteTeam(member.id)}
+                                />
+                            ))}
+                        </div>
                     </div>
 
-                    <div className="space-y-4">
-                        {(data.playbook || []).map((item, idx) => (
-                            <Card key={idx}>
-                                <CardContent className="pt-6 space-y-4">
-                                    <div className="grid gap-4">
-                                        <div className="grid gap-2">
-                                            <Label>If review mentions...</Label>
-                                            <Input
-                                                value={item.trigger}
-                                                onChange={(e) => updatePlaybookItem(idx, 'trigger', e.target.value)}
-                                                placeholder="e.g. price, expensive, cost"
-                                            />
-                                        </div>
-                                        <div className="grid gap-2">
-                                            <Label>Then reply with...</Label>
-                                            <Textarea
-                                                value={item.response}
-                                                onChange={(e) => updatePlaybookItem(idx, 'response', e.target.value)}
-                                                placeholder="e.g. We use premium, locally sourced ingredients to ensure the best quality."
-                                            />
-                                        </div>
-                                    </div>
-                                    <div className="flex justify-end mt-2">
-                                        <Button variant="ghost" size="sm" onClick={() => removePlaybookItem(idx)} type="button" className="text-destructive hover:text-destructive">
-                                            <Trash2 className="h-4 w-4 mr-2" /> Remove Rule
-                                        </Button>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        ))}
+                    {/* GEO Section */}
+                    <div className="space-y-3 pt-4">
+                        <div className="flex items-center gap-2 text-sm font-semibold text-gray-700 uppercase tracking-wide">
+                            <MapPin className="h-4 w-4" /> GEO Keywords
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {data.geoKeywords?.map((geo) => (
+                                <FactCard
+                                    key={geo.id}
+                                    type="geo"
+                                    title={geo.keyword}
+                                    subtitle={`${geo.priority} Priority`}
+                                    status="indexed"
+                                    onDelete={() => handleDeleteGeo(geo.id)}
+                                />
+                            ))}
+                        </div>
                     </div>
 
-                    <Button variant="outline" onClick={addPlaybookItem} type="button" className="w-full">
-                        <Plus className="h-4 w-4 mr-2" /> Add New Rule
-                    </Button>
-                </TabsContent>
-            </Tabs>
+                    {/* Policies Section (Legacy Data) */}
+                    <div className="space-y-3 pt-4">
+                        <div className="flex items-center gap-2 text-sm font-semibold text-gray-700 uppercase tracking-wide">
+                            <Shield className="h-4 w-4" /> Policies & Core Info
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {data.general?.services?.map((svc, i) => (
+                                <FactCard
+                                    key={`svc-${i}`}
+                                    type="policy"
+                                    title="Service"
+                                    subtitle={svc}
+                                    status="indexed"
+                                    onDelete={() => handleDeletePolicy(i, true)}
+                                />
+                            ))}
+                            {data.general?.policies?.map((policy, i) => (
+                                <FactCard
+                                    key={`pol-${i}`}
+                                    type="policy"
+                                    title="Policy"
+                                    subtitle={policy}
+                                    status="indexed"
+                                    onDelete={() => handleDeletePolicy(i, false)}
+                                />
+                            ))}
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            {/* Split Screen Simulation (Right) */}
+            <div className="w-[350px] shrink-0 hidden lg:block sticky top-0 h-full">
+                <SimulationPreview />
+            </div>
+
         </div>
     );
 }
