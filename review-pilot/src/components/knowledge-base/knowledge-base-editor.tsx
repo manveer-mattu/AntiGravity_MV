@@ -210,7 +210,7 @@ export function KnowledgeBaseEditor({ initialData, onChange }: KnowledgeBaseEdit
 
             {/* Split Screen Simulation (Right) */}
             <div className="w-[350px] shrink-0 hidden lg:block sticky top-0 h-full">
-                <SimulationPreview />
+                <SimulationPreview knowledgeBase={data} />
             </div>
 
         </div>

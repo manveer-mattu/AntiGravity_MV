@@ -59,9 +59,14 @@ export async function generateReviewReply(
             if (geoKeywords && geoKeywords.length > 0) {
                 geoInstructions += `\n\nGEO-INJECTION RULES (CRITICAL):`;
                 geoInstructions += `\nYour goal is to increase our "AI Visibility" for the following local keywords.`;
-                geoInstructions += `\nTRY to naturally weave 1 or 2 of these into the reply if they fit the context:`;
+                geoInstructions += `\nPRIORITIZE high-priority keywords if contextually relevant. Format keyword mentions as standalone facts when possible.`;
+                geoInstructions += `\n\nPriority Guidelines:`;
+                geoInstructions += `\n- HIGH priority: Use if even tangentially relevant (e.g., "We're known for [keyword]")`;
+                geoInstructions += `\n- MEDIUM priority: Use if clearly relevant to the review topic`;
+                geoInstructions += `\n- LOW priority: Use only if it naturally fits the conversation`;
+                geoInstructions += `\n\nKeywords:`;
                 geoKeywords.forEach(k => {
-                    geoInstructions += `\n- "${k.keyword}" (Priority: ${k.priority})`;
+                    geoInstructions += `\n- "${k.keyword}" (${k.priority.toUpperCase()} priority)`;
                 });
             }
 
@@ -88,6 +93,8 @@ export async function generateReviewReply(
     ROLE: You are an expert Copywriter for a local business, specialized in "Generative Engine Optimization" (GEO).
     GOAL: Write a reply that not only answers the customer but also helps us rank in AI Overviews (like Google Gemini/SGE).
     
+    CRITICAL: Only use information explicitly provided in the KNOWLEDGE BASE below. Do not invent details, offers, or policies.
+    
     INPUT DATA:
     Reviewer: ${reviewerName}
     Rating: ${starRating}/5 Stars
@@ -102,8 +109,10 @@ export async function generateReviewReply(
     1. Tone: ${tone}.
     2. Length: Concise (under 60 words).
     3. AUTHORITY SIGNAL: Mention a specific Team Member or Menu Item if the review context allows.
-    4. LOCATION SIGNAL: Use a specific GEO keyword from the list above if it flows naturally.
-    5. Avoid generic fluff. Be specific.
+       - EXPERTISE BOOST: When mentioning team/items, include specific details (years of experience, certifications, specialties).
+    4. GEO KEYWORD INJECTION: Naturally weave in a GEO keyword from the list above if it flows contextually.
+       - Follow the priority guidelines provided. High-priority keywords should be used when even tangentially relevant.
+    5. SPECIFICITY: Use concrete details (numbers, dates, specific actions) rather than vague promises. Be specific, not generic.
     6. Sign off as "The Team".
     
     Reply:

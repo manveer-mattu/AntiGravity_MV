@@ -2,26 +2,67 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { RefreshCw, CheckCircle2 } from 'lucide-react';
+import { RefreshCw, CheckCircle2, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useState } from 'react';
+import { KnowledgeBase } from '@/types';
 
-export function SimulationPreview() {
+// Different customer query types to cycle through
+const CUSTOMER_QUERIES = [
+    "I heard you serve gluten-free options now? Is it any good?",
+    "Do you have wifi for remote work?",
+    "Can I bring my dog?",
+    "Where are you located? I'm searching for the best spots in the area.",
+    "What are your hours during the holidays?",
+];
+
+interface SimulationPreviewProps {
+    knowledgeBase?: KnowledgeBase;
+}
+
+export function SimulationPreview({ knowledgeBase }: SimulationPreviewProps) {
     const [isGenerating, setIsGenerating] = useState(false);
+    const [currentQueryIndex, setCurrentQueryIndex] = useState(0);
+    const [response, setResponse] = useState<string | null>(null);
+    const [entitiesUsed, setEntitiesUsed] = useState<string[]>([]);
+    const [error, setError] = useState<string | null>(null);
 
-    // Mock simulation state
-    const [simulation] = useState({
-        review: "I heard you serve gluten-free pizza now? Is it any good?",
-        reply: "Hi there! Yes, we definitely do. Our GF crust is handmade daily by Chef Marco. We'd love for you to try it!"
-    });
+    const currentQuery = CUSTOMER_QUERIES[currentQueryIndex];
 
-    const handleSimulate = () => {
+    const handleSimulate = async () => {
         setIsGenerating(true);
-        setTimeout(() => {
+        setError(null);
+
+        try {
+            const res = await fetch('/api/simulate-response', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ customerQuery: currentQuery }),
+            });
+
+            if (!res.ok) {
+                throw new Error('Failed to generate response');
+            }
+
+            const data = await res.json();
+            setResponse(data.response);
+            setEntitiesUsed(data.entitiesUsed || []);
+
+            // Cycle to next query
+            setCurrentQueryIndex((prev) => (prev + 1) % CUSTOMER_QUERIES.length);
+        } catch (err) {
+            console.error('Simulation error:', err);
+            setError('Failed to generate response. Using fallback.');
+            setResponse("Thanks for your question! We'd love to help you. Please feel free to visit us or reach out directly. — The Team");
+            setEntitiesUsed([]);
+        } finally {
             setIsGenerating(false);
-            // In a real app, this would call the API with the current KB state
-        }, 1200);
+        }
     };
+
+    // Generate initial response message
+    const displayResponse = response || "Click the refresh button to generate an AI response using your knowledge base!";
+    const hasEntities = entitiesUsed.length > 0;
 
     return (
         <Card className="h-full border-l rounded-none border-t-0 border-b-0 border-r-0 bg-gray-50/50 shadow-none">
@@ -41,7 +82,7 @@ export function SimulationPreview() {
                 <div className="space-y-2">
                     <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Customer Trigger</p>
                     <div className="bg-white p-3 rounded-lg border shadow-sm text-sm text-gray-700">
-                        &quot;{simulation.review}&quot;
+                        &quot;{currentQuery}&quot;
                     </div>
                 </div>
 
@@ -64,19 +105,35 @@ export function SimulationPreview() {
                     </div>
                     <div className="bg-indigo-50/50 p-3 rounded-lg border border-indigo-100 text-sm text-gray-800 relative group">
                         <div className={`transition-opacity duration-300 ${isGenerating ? 'opacity-50' : 'opacity-100'}`}>
-                            {simulation.reply}
+                            {displayResponse}
                         </div>
 
-                        {/* Highlight "Chef Marco" as an injected entity */}
-                        <div className="absolute -right-2 -top-2 bg-white shadow-sm border rounded-full px-2 py-0.5 text-[10px] font-bold text-green-600 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <CheckCircle2 className="h-3 w-3" /> Entity Match
-                        </div>
+                        {hasEntities && (
+                            <div className="absolute -right-2 -top-2 bg-white shadow-sm border rounded-full px-2 py-0.5 text-[10px] font-bold text-green-600 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <CheckCircle2 className="h-3 w-3" /> Entity Match
+                            </div>
+                        )}
                     </div>
                 </div>
 
-                <div className="bg-blue-50 p-3 rounded text-xs text-blue-700">
-                    <span className="font-bold">Insight:</span> The AI successfully injected &quot;Chef Marco&quot; (Team Entity) to boost authority.
-                </div>
+                {error && (
+                    <div className="bg-amber-50 p-3 rounded text-xs text-amber-700 flex items-start gap-2">
+                        <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                        <span>{error}</span>
+                    </div>
+                )}
+
+                {hasEntities && (
+                    <div className="bg-blue-50 p-3 rounded text-xs text-blue-700">
+                        <span className="font-bold">Insight:</span> The AI successfully used: {entitiesUsed.join(', ')}
+                    </div>
+                )}
+
+                {!hasEntities && response && !error && (
+                    <div className="bg-gray-50 p-3 rounded text-xs text-gray-600">
+                        <span className="font-bold">Insight:</span> Generic response. Add more knowledge base entities for richer AI responses.
+                    </div>
+                )}
             </CardContent>
         </Card>
     );
