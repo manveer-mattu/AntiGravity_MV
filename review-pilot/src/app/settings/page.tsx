@@ -39,7 +39,7 @@ export default async function SettingsPage() {
     if (userId) {
         const { data } = await dbClient
             .from('businesses')
-            .select('business_name, auto_reply_threshold, ai_tone, business_context, knowledge_base')
+            .select('business_name, auto_reply_threshold, ai_tone, business_context, knowledge_base, brand_voice, safety_settings')
             .eq('user_id', userId)
             .single();
 
@@ -49,7 +49,9 @@ export default async function SettingsPage() {
                 autoReplyThreshold: data.auto_reply_threshold,
                 aiTone: data.ai_tone,
                 businessContext: data.business_context,
-                knowledgeBase: data.knowledge_base
+                knowledgeBase: data.knowledge_base,
+                brandVoice: data.brand_voice,
+                safetySettings: data.safety_settings
             };
         }
     }

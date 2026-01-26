@@ -1,12 +1,11 @@
-'use client';
-
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { KnowledgeBase } from '@/types';
 import { FactCard } from './fact-card';
-import { SmartIngestor } from './smart-ingestor';
-import { SimulationPreview } from './simulation-preview';
 import { GeoHealthWidget } from './geo-health';
 import { Users, MapPin, Shield } from 'lucide-react';
+
+import { EditFactSheet } from './edit-fact-sheet';
+import { AddFactCard } from './add-fact-card';
 
 interface KnowledgeBaseEditorProps {
     initialData: KnowledgeBase;
@@ -14,76 +13,103 @@ interface KnowledgeBaseEditorProps {
 }
 
 export function KnowledgeBaseEditor({ initialData, onChange }: KnowledgeBaseEditorProps) {
-    // Initialize with mock data if no initial data
+    // Editing state
+    const [editingItem, setEditingItem] = useState<{ type: 'team' | 'geo' | 'policy' | 'about', id: string | number, data: any } | null>(null);
+
+    // Initialize with empty defaults if no initial data
     const [data, setData] = useState<KnowledgeBase>(() => {
-        if (!initialData || Object.keys(initialData).length === 0) {
-            // Return mock data with proper IDs
-            return {
-                team: [{
-                    id: 'mock-team-1',
-                    name: 'Chef Marco',
-                    role: 'Head Chef',
-                    context: '15 years exp. Specialized in handmade pasta.',
-                    isPublic: true
-                }],
-                geoKeywords: [
-                    {
-                        id: 'mock-geo-1',
-                        keyword: 'Best Coffee Shoreditch',
-                        priority: 'high' as const
-                    },
-                    {
-                        id: 'mock-geo-2',
-                        keyword: 'Free Wi-Fi Cafe',
-                        priority: 'medium' as const
-                    }
-                ],
-                general: {
-                    policies: ['Pet Friendly - Dogs allowed on patio only.']
-                }
-            };
+        if (initialData && Object.keys(initialData).length > 0) {
+            return initialData;
         }
-        return initialData;
+        return {
+            team: [],
+            geoKeywords: [],
+            general: {
+                policies: []
+            },
+            menuHighlights: [],
+            playbook: []
+        };
     });
 
-    // Mock handler for adding new facts from Ingestor
-    const handleAddFact = (fact: { type: string; title?: string; subtitle?: string; status: string }) => {
-        // In a real implementation, we would update the specific array in 'data' based on fact.type
-        // For MVP demo, we'll just log or simplistic state update if needed
-        console.log("Added fact:", fact);
+    // Validated 1-way sync: Update local state when prop changes
+    useEffect(() => {
+        if (initialData) {
+            setData(initialData);
+        }
+    }, [initialData]);
 
-        // Example: Add to team if type is team
-        if (fact.type === 'team') {
-            const newTeam = [...(data.team || []), {
-                id: Date.now().toString(),
-                name: 'New Member',
-                role: 'Staff',
-                context: fact.subtitle,
-                isPublic: true
-            }];
-            const newData = { ...data, team: newTeam };
-            setData(newData);
-            onChange(newData);
+
+    const handleSaveEdit = (updatedData: any) => {
+        if (!editingItem) return;
+
+        // CREATE MODE
+        if (editingItem.id === 'new') {
+            if (editingItem.type === 'team') {
+                const newTeamMember = {
+                    id: Date.now().toString(),
+                    name: updatedData.name || 'New Member',
+                    role: updatedData.role || 'Staff',
+                    context: updatedData.context,
+                    yearsOfExperience: updatedData.yearsOfExperience, // Note: Edit sheet needs to support this if valuable, simpler for now
+                    isPublic: true,
+                    ...updatedData // Spread any other fields
+                };
+                const newTeam = [...(data.team || []), newTeamMember];
+                const newData = { ...data, team: newTeam };
+                setData(newData);
+                onChange(newData);
+            } else if (editingItem.type === 'geo') {
+                const newGeo = {
+                    id: Date.now().toString(),
+                    keyword: updatedData.keyword || 'Keyword',
+                    priority: updatedData.priority || 'high',
+                    usageExample: updatedData.usageExample,
+                    ...updatedData
+                };
+                const newKeywords = [...(data.geoKeywords || []), newGeo];
+                const newData = { ...data, geoKeywords: newKeywords };
+                setData(newData);
+                onChange(newData);
+            } else if (editingItem.type === 'policy') {
+                const newPolicies = [...(data.general?.policies || []), updatedData.content || ''];
+                const newGeneral = { ...data.general, policies: newPolicies };
+                const newData = { ...data, general: newGeneral };
+                setData(newData);
+                onChange(newData);
+            }
         }
-        if (fact.type === 'geo') {
-            const newGeo = [...(data.geoKeywords || []), {
-                id: Date.now().toString(),
-                keyword: fact.title || '',
-                priority: 'high' as const // explicit cast for TS
-            }];
-            const newData = { ...data, geoKeywords: newGeo };
-            setData(newData);
-            onChange(newData);
+        // EDIT MODE
+        else {
+            if (editingItem.type === 'team') {
+                const newTeam = data.team?.map(m => m.id === editingItem.id ? { ...m, ...updatedData } : m);
+                const newData = { ...data, team: newTeam };
+                setData(newData);
+                onChange(newData);
+            } else if (editingItem.type === 'geo') {
+                const newGeo = data.geoKeywords?.map(k => k.id === editingItem.id ? { ...k, ...updatedData } : k);
+                const newData = { ...data, geoKeywords: newGeo };
+                setData(newData);
+                onChange(newData);
+            } else if (editingItem.type === 'policy') {
+                // Policy is just an array of strings currently in 'general.policies'
+                // But we might be editing one index
+                const index = editingItem.id as number;
+                const newPolicies = [...(data.general?.policies || [])];
+                newPolicies[index] = updatedData.content;
+
+                const newGeneral = { ...data.general, policies: newPolicies };
+                const newData = { ...data, general: newGeneral };
+                setData(newData);
+                onChange(newData);
+            } else if (editingItem.type === 'about') {
+                const newGeneral = { ...data.general, about: updatedData.about };
+                const newData = { ...data, general: newGeneral };
+                setData(newData);
+                onChange(newData);
+            }
         }
-        if (fact.type === 'policy') {
-            const newGeneral = {
-                ...data.general,
-                policies: [...(data.general?.policies || []), fact.subtitle || '']
-            };
-            const newData = { ...data, general: newGeneral };
-            setData(newData);
-            onChange(newData);
-        }
+        setEditingItem(null);
     };
 
     const handleDeleteTeam = (id: string) => {
@@ -113,19 +139,12 @@ export function KnowledgeBaseEditor({ initialData, onChange }: KnowledgeBaseEdit
     };
 
     return (
-        <div className="flex h-[calc(100vh-100px)] gap-6">
+        <div className="flex gap-6">
 
             {/* Main Content Area (Left) */}
-            <div className="flex-1 space-y-8 overflow-y-auto pr-2">
+            <div className="flex-1 space-y-8 pr-2">
 
-                {/* Header Section */}
-                <div className="flex justify-between items-end">
-                    <div>
-                        <h2 className="text-2xl font-semibold tracking-tight text-gray-900">Brand DNA</h2>
-                        <p className="text-muted-foreground mt-1">Manage the facts that power your AI&apos;s local authority.</p>
-                    </div>
-                    <SmartIngestor onAddFact={handleAddFact} />
-                </div>
+                {/* Dashboard Widgets Row */}
 
                 {/* Dashboard Widgets Row */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -144,35 +163,71 @@ export function KnowledgeBaseEditor({ initialData, onChange }: KnowledgeBaseEdit
                             <Users className="h-4 w-4" /> Our Team
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {data.team?.map((member) => (
-                                <FactCard
-                                    key={member.id}
-                                    type="team"
-                                    title={member.name}
-                                    subtitle={`${member.role} - ${member.context}`}
-                                    status="indexed"
-                                    onDelete={() => handleDeleteTeam(member.id)}
-                                />
-                            ))}
+                            {data.team?.map((member) => {
+                                // Build E-E-A-T display subtitle
+                                const details: string[] = [member.role];
+                                if (member.yearsOfExperience) {
+                                    details.push(`${member.yearsOfExperience} yrs exp`);
+                                }
+                                if (member.specialties && member.specialties.length > 0) {
+                                    details.push(member.specialties.slice(0, 2).join(', '));
+                                }
+                                // Add freeform context for AI-ingested facts
+                                if (member.context) {
+                                    details.push(member.context);
+                                }
+                                const subtitle = details.join(' • ');
+
+                                return (
+                                    <FactCard
+                                        key={member.id}
+                                        type="team"
+                                        title={member.name}
+                                        subtitle={subtitle}
+                                        status="indexed"
+                                        onEdit={() => setEditingItem({ type: 'team', id: member.id, data: member })}
+                                        onDelete={() => handleDeleteTeam(member.id)}
+                                    />
+                                );
+                            })}
+
+                            {/* Manual Add Card - Team */}
+                            <AddFactCard
+                                label="Add Team Member"
+                                onClick={() => setEditingItem({ type: 'team', id: 'new', data: { name: '', role: '', context: '' } })}
+                            />
                         </div>
                     </div>
 
                     {/* GEO Section */}
                     <div className="space-y-3 pt-4">
                         <div className="flex items-center gap-2 text-sm font-semibold text-gray-700 uppercase tracking-wide">
-                            <MapPin className="h-4 w-4" /> GEO Keywords
+                            <MapPin className="h-4 w-4" /> AI Discovery Targets
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {data.geoKeywords?.map((geo) => (
-                                <FactCard
-                                    key={geo.id}
-                                    type="geo"
-                                    title={geo.keyword}
-                                    subtitle={`${geo.priority} Priority`}
-                                    status="indexed"
-                                    onDelete={() => handleDeleteGeo(geo.id)}
-                                />
-                            ))}
+                            {data.geoKeywords?.map((geo) => {
+                                const subtitle = geo.usageExample
+                                    ? `${geo.priority} • ${geo.usageExample}`
+                                    : `${geo.priority} priority`;
+
+                                return (
+                                    <FactCard
+                                        key={geo.id}
+                                        type="geo"
+                                        title={geo.keyword}
+                                        subtitle={subtitle}
+                                        status="indexed"
+                                        onEdit={() => setEditingItem({ type: 'geo', id: geo.id, data: geo })}
+                                        onDelete={() => handleDeleteGeo(geo.id)}
+                                    />
+                                );
+                            })}
+
+                            {/* Manual Add Card - GEO */}
+                            <AddFactCard
+                                label="Add Target Phrase"
+                                onClick={() => setEditingItem({ type: 'geo', id: 'new', data: { keyword: '', usageExample: '' } })}
+                            />
                         </div>
                     </div>
 
@@ -189,6 +244,7 @@ export function KnowledgeBaseEditor({ initialData, onChange }: KnowledgeBaseEdit
                                     title="Service"
                                     subtitle={svc}
                                     status="indexed"
+                                    onEdit={() => setEditingItem({ type: 'policy', id: i, data: { content: svc } })}
                                     onDelete={() => handleDeletePolicy(i, true)}
                                 />
                             ))}
@@ -199,19 +255,31 @@ export function KnowledgeBaseEditor({ initialData, onChange }: KnowledgeBaseEdit
                                     title="Policy"
                                     subtitle={policy}
                                     status="indexed"
+                                    onEdit={() => setEditingItem({ type: 'policy', id: i, data: { content: policy } })}
                                     onDelete={() => handleDeletePolicy(i, false)}
                                 />
                             ))}
+                            {/* Manual Add Card - Policy */}
+                            <AddFactCard
+                                label="Add Policy"
+                                onClick={() => setEditingItem({ type: 'policy', id: 'new', data: { content: '' } })}
+                            />
                         </div>
                     </div>
 
                 </div>
             </div>
 
-            {/* Split Screen Simulation (Right) */}
-            <div className="w-[350px] shrink-0 hidden lg:block sticky top-0 h-full">
-                <SimulationPreview knowledgeBase={data} />
-            </div>
+            {/* Edit Dialog */}
+            {editingItem && (
+                <EditFactSheet
+                    isOpen={!!editingItem}
+                    onClose={() => setEditingItem(null)}
+                    onSave={handleSaveEdit}
+                    type={editingItem.type}
+                    initialData={editingItem.data}
+                />
+            )}
 
         </div>
     );

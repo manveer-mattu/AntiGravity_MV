@@ -1,13 +1,14 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { KnowledgeBase } from "@/types";
+import { KnowledgeBase, BrandVoice } from "@/types";
 
 export async function generateReviewReply(
     reviewerName: string,
     starRating: number,
     reviewContent: string,
-    businessContext?: string, // Keep for backward compatibility or simple string injection
+    businessContext?: string,
     preferredTone?: string,
-    knowledgeBase?: KnowledgeBase
+    knowledgeBase?: KnowledgeBase,
+    brandVoice?: BrandVoice
 ): Promise<{ reply: string, isFallback: boolean }> {
     // Retry logic
     let attempts = 0;
@@ -20,9 +21,22 @@ export async function generateReviewReply(
         const genAI = new GoogleGenerativeAI(apiKey);
         const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
 
-        const tone = preferredTone
-            ? preferredTone
-            : (starRating >= 4 ? "grateful and professional" : "empathetic, apologetic, and professional");
+        // Tone Mapping from Brand Voice (GEO Philosophy)
+        let tone = preferredTone;
+        if (!tone && brandVoice) {
+            const score = brandVoice.tone_score;
+            if (score <= 3) {
+                tone = "formal, professional, minimal emojis";
+            } else if (score <= 7) {
+                tone = "warm, helpful, community-focused";
+            } else {
+                tone = "witty, bold, casual, expressive";
+            }
+        }
+        // Fallback if neither brandVoice nor preferredTone provided
+        if (!tone) {
+            tone = starRating >= 4 ? "grateful and professional" : "empathetic, apologetic, and professional";
+        }
 
         // Construct Knowledge Base & GEO Instructions
         let kbString = "";
@@ -51,7 +65,33 @@ export async function generateReviewReply(
             if (team && team.length > 0) {
                 kbString += `\n\nTEAM ROSTER (Mention if relevant to service/food):`;
                 team.forEach(m => {
-                    if (m.isPublic) kbString += `\n- ${m.name} (${m.role}): ${m.context || ''}`;
+                    if (m.isPublic) {
+                        let teamDesc = `\n- ${m.name} (${m.role})`;
+
+                        // Build E-E-A-T details from structured fields
+                        const eeDetails: string[] = [];
+                        if (m.yearsOfExperience) {
+                            eeDetails.push(`${m.yearsOfExperience} years of experience`);
+                        }
+                        if (m.certifications && m.certifications.length > 0) {
+                            eeDetails.push(`certified in: ${m.certifications.join(', ')}`);
+                        }
+                        if (m.specialties && m.specialties.length > 0) {
+                            eeDetails.push(`specializes in: ${m.specialties.join(', ')}`);
+                        }
+
+                        // Add structured E-E-A-T details
+                        if (eeDetails.length > 0) {
+                            teamDesc += ` — ${eeDetails.join('; ')}`;
+                        }
+
+                        // Fallback to freeform context if no structured data
+                        if (eeDetails.length === 0 && m.context) {
+                            teamDesc += `: ${m.context}`;
+                        }
+
+                        kbString += teamDesc;
+                    }
                 });
             }
 
@@ -66,7 +106,12 @@ export async function generateReviewReply(
                 geoInstructions += `\n- LOW priority: Use only if it naturally fits the conversation`;
                 geoInstructions += `\n\nKeywords:`;
                 geoKeywords.forEach(k => {
-                    geoInstructions += `\n- "${k.keyword}" (${k.priority.toUpperCase()} priority)`;
+                    let keywordLine = `\n- "${k.keyword}" (${k.priority.toUpperCase()} priority)`;
+                    // Add usage example if provided
+                    if (k.usageExample) {
+                        keywordLine += ` — Example: ${k.usageExample}`;
+                    }
+                    geoInstructions += keywordLine;
                 });
             }
 
@@ -142,4 +187,119 @@ export async function generateReviewReply(
     ];
     const index = reviewerName.length % mockResponses.length;
     return { reply: mockResponses[index], isFallback: true };
+}
+
+
+export async function extractKnowledgeFromText(text: string): Promise<{
+    type: 'team' | 'geo' | 'policy';
+    title: string;
+    subtitle: string;
+    extractedContext: string;
+}> {
+    try {
+        const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+        if (!apiKey) throw new Error("API key missing");
+
+        const genAI = new GoogleGenerativeAI(apiKey);
+        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
+
+
+        const prompt = `
+    ROLE: Structured Data Extractor
+    GOAL: Parse the user's input text into a structured JSON object for a business Knowledge Base.
+    
+    INPUT TEXT: "${text}"
+    
+    INSTRUCTIONS:
+    1. CLASSIFY 'type':
+       - "team": If input is about a person (Chef, Manager, Server), their role, or experience.
+       - "geo": If input is about location, neighborhood, landmarks, or "best [x] in [y]".
+       - "policy": If input is about rules, hours, services, parking, music, or amenities.
+    
+    2. EXTRACT fields based on type:
+       
+       FOR "team": 
+       - title: The person's Name ONLY (e.g. "Antonio", "Marco"). Do NOT include title/honorific here.
+       - subtitle: The inferred Role (e.g. "Chef", "Head Chef", "Manager"). Infer from context or honorific.
+       - extractedContext: The specific details (e.g. "has 10 years experience", "specializes in pasta").
+    
+       FOR "geo":
+       - title: Short Keyword (e.g. "Best Pizza in Brooklyn")
+       - subtitle: Priority (High/Med/Low)
+       - extractedContext: full text
+    
+       FOR "policy":
+       - title: Topic (e.g. "Pet Policy")
+       - subtitle: Summary
+       - extractedContext: full text
+    
+    3. JSON OUTPUT ONLY. No markdown.
+    {
+      "type": "team" | "geo" | "policy",
+      "title": "string",
+      "subtitle": "string",
+      "extractedContext": "string"
+    }
+    `;
+
+        const result = await model.generateContent(prompt);
+        const textResponse = result.response.text();
+
+        console.log("Only-AI Raw Response:", textResponse); // Debug logging
+
+        const cleanJson = textResponse.replace(/^```json\s*/, '').replace(/^```\s*/, '').replace(/\s*```$/, '').trim();
+        return JSON.parse(cleanJson);
+
+    } catch (error) {
+        console.warn("AI Extraction Failed, using fallback heuristics:", error);
+
+        // Smarter Fallback Logic (Heuristics)
+        const lowerText = text.toLowerCase();
+
+        // Team Heuristics
+        if (lowerText.includes('chef') || lowerText.includes('manager') || lowerText.includes('owner') || lowerText.includes('server') || lowerText.includes('staff') || lowerText.includes('cook')) {
+
+            // Try to extract Name and Role from "Chef [Name]" pattern
+            const words = text.split(' ');
+            let name = "New Member";
+            let role = "Staff Member";
+
+            if (lowerText.includes('chef')) {
+                role = "Chef";
+                // If text starts with "Chef Name", extract Name
+                const chefIndex = words.findIndex(w => w.toLowerCase() === 'chef');
+                if (chefIndex !== -1 && words[chefIndex + 1]) {
+                    name = words[chefIndex + 1].replace(/[^a-zA-Z]/g, ''); // Simple cleanup
+                }
+            } else if (lowerText.includes('manager')) {
+                role = "Manager";
+            }
+
+            return {
+                type: 'team',
+                title: name,
+                subtitle: role,
+                extractedContext: text // Keep full text as context
+            };
+        }
+
+        // ... rest of fallbacks
+        // GEO Heuristics
+        if (lowerText.includes('best') || lowerText.includes('near') || lowerText.includes('located') || lowerText.includes(' in ')) {
+            return {
+                type: 'geo',
+                title: text.slice(0, 30) + '...',
+                subtitle: 'High Priority',
+                extractedContext: "We are known for: " + text
+            };
+        }
+
+        // Default to Policy
+        return {
+            type: 'policy',
+            title: 'New Info',
+            subtitle: text.slice(0, 50),
+            extractedContext: text
+        };
+    }
 }

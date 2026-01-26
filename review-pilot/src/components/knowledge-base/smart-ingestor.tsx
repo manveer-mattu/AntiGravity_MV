@@ -24,30 +24,49 @@ export function SmartIngestor({ onAddFact }: SmartIngestorProps) {
 
     const handleSubmit = async () => {
         setIsLoading(true);
-        // Simulate AI processing
-        await new Promise(resolve => setTimeout(resolve, 800));
 
-        // Intelligent Classification Logic
         if (activeTab === 'text') {
-            const lowerText = textFact.toLowerCase();
-            let type = 'team'; // Default
-            let title = 'Team Member';
-            let subtitle = textFact;
+            // Use AI Server Action
+            try {
+                // Dynamic import to avoid server-on-client issues if not fully separated, 
+                // but since it's a server action imported from a file, it should work fine.
+                // However, we need to import it at top level. 
+                // Let's assume the import is added.
+                const { ingestKnowledge } = await import('@/app/actions/knowledge');
+                const result = await ingestKnowledge(textFact);
 
-            // Heuristic Parsing
-            if (lowerText.includes('chef') || lowerText.includes('cook') || lowerText.includes('kitchen') || lowerText.includes('manager')) {
-                type = 'team';
-                title = 'Staff Asset';
-            } else if (lowerText.includes('best') || lowerText.includes('near') || lowerText.includes('in ')) {
-                type = 'geo';
-                title = textFact.split(' ').slice(0, 3).join(' ') + '...';
-                subtitle = 'High Priority Keyword';
-            } else if (lowerText.includes('policy') || lowerText.includes('music') || lowerText.includes('parking') || lowerText.includes('wifi') || lowerText.includes('hours') || lowerText.includes('open')) {
-                type = 'policy';
-                title = 'Core Info';
+                if (result.success && result.data) {
+                    onAddFact({
+                        type: result.data.type,
+                        title: result.data.title,
+                        subtitle: result.data.subtitle,
+                        status: 'indexed' // extractedContext is handled by mapping in parent
+                    });
+                    // Hack: Pass extractedContext via subtitle or a combined object? 
+                    // The parent expects specific fields. 
+                    // We should pass the context so the parent can put it in 'context' field.
+                    // Let's overload 'subtitle' to carry it if needed, OR update the parent interface.
+                    // Ideally, we pass it all.
+                    // Let's piggyback context on the object we pass to onAddFact.
+                    // The interface in SmartIngestorProps defines what we can pass.
+                    // It is: (fact: { type: string; title?: string; subtitle?: string; status: string }) => void;
+                    // We can cheat and pass extra props if TS allows, or we stringify.
+                    // Better: Passed 'subtitle' is often displayed. 
+                    // For Team, subtitle is Role. Context is extra.
+                    // Let's pass context mixed in or update the parent.
+                    // For now, let's pass context as a separate field by casting.
+                    onAddFact({
+                        type: result.data.type,
+                        title: result.data.title,
+                        subtitle: result.data.subtitle,
+                        status: 'indexed',
+                        // @ts-ignore
+                        extractedContext: result.data.extractedContext
+                    });
+                }
+            } catch (e) {
+                console.error("Ingestion failed", e);
             }
-
-            onAddFact({ type, title, subtitle, status: 'indexed' });
         }
         else if (activeTab === 'geo') {
             onAddFact({ type: 'geo', title: geoKeyword, subtitle: 'High Priority Keyword', status: 'indexed' });

@@ -173,3 +173,36 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Settings Card Styling - Luminous Design */
+@layer utilities {
+  .card-business {
+    border-top: 4px solid #4f46e5;
+    /* indigo-600 */
+  }
+
+  .card-business-header {
+    background: linear-gradient(to right, #e0e7ff, transparent);
+    /* indigo-100 to transparent */
+  }
+
+  .card-ai {
+    border-top: 4px solid #9333ea;
+    /* purple-600 */
+  }
+
+  .card-ai-header {
+    background: linear-gradient(to right, #f3e8ff, transparent);
+    /* purple-100 to transparent */
+  }
+
+  .card-dna {
+    border-top: 4px solid #2563eb;
+    /* blue-600 */
+  }
+
+  .card-dna-header {
+    background: linear-gradient(to right, #dbeafe, transparent);
+    /* blue-100 to transparent */
+  }
+}

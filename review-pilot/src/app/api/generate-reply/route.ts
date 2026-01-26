@@ -24,6 +24,9 @@ export async function POST(request: Request) {
         // but finding by user email is consistent with our other logic
         let businessContext = "";
         let preferredTone: string | undefined = undefined;
+        let knowledgeBase: any = null;
+        let brandVoice: any = null;
+        let safetySettings: any = { crisis_keywords: [] };
 
         // Quick fetch - query businesses directly for the mock user if we can find them, 
         // or just getAll for MVP since there's likely only 1 or few.
@@ -34,15 +37,36 @@ export async function POST(request: Request) {
         if (mockUser) {
             const { data: business } = await adminClient
                 .from('businesses')
-                .select('business_context, ai_tone, knowledge_base')
+                .select('business_context, ai_tone, knowledge_base, brand_voice, safety_settings')
                 .eq('user_id', mockUser.id)
                 .single();
+
+            console.log('🔍 DEBUG: Fetched business data:', JSON.stringify(business, null, 2));
 
             if (business) {
                 if (business.business_context) businessContext = business.business_context;
                 if (business.ai_tone) preferredTone = business.ai_tone;
-                // Add validation to ensure it matches the type if needed, but JSONB usually comes as any
-                var knowledgeBase = business.knowledge_base;
+                knowledgeBase = business.knowledge_base;
+                brandVoice = business.brand_voice;
+                safetySettings = business.safety_settings || { crisis_keywords: [] };
+
+                console.log('🔍 DEBUG: Knowledge Base passed to AI:', JSON.stringify(knowledgeBase, null, 2));
+            }
+        }
+
+        // SAFETY GATE: Crisis Keyword Detection (GEO Philosophy)
+        if (safetySettings.crisis_keywords && safetySettings.crisis_keywords.length > 0) {
+            const contentLower = content.toLowerCase();
+            const hasCrisisKeyword = safetySettings.crisis_keywords.some((keyword: string) =>
+                contentLower.includes(keyword.toLowerCase())
+            );
+
+            if (hasCrisisKeyword) {
+                return NextResponse.json({
+                    error: "CRISIS_DETECTED",
+                    message: "This review contains sensitive keywords and requires manual review.",
+                    requiresHumanReview: true
+                }, { status: 403 });
             }
         }
 
@@ -52,7 +76,8 @@ export async function POST(request: Request) {
             content,
             businessContext,
             preferredTone,
-            knowledgeBase
+            knowledgeBase,
+            brandVoice
         );
 
         return NextResponse.json({ reply, isFallback });
