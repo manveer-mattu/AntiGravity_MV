@@ -4,7 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 
 export async function POST(request: Request) {
     try {
-        const { reviewerName, starRating, content } = await request.json();
+        const { reviewerName, starRating, content, brandVoiceOverride } = await request.json();
 
         if (!content || !starRating) {
             return NextResponse.json(
@@ -23,7 +23,6 @@ export async function POST(request: Request) {
         // We can optimize this by caching or just querying business directly if we knew ID, 
         // but finding by user email is consistent with our other logic
         let businessContext = "";
-        let preferredTone: string | undefined = undefined;
         let knowledgeBase: any = null;
         let brandVoice: any = null;
         let safetySettings: any = { crisis_keywords: [] };
@@ -37,7 +36,7 @@ export async function POST(request: Request) {
         if (mockUser) {
             const { data: business } = await adminClient
                 .from('businesses')
-                .select('business_context, ai_tone, knowledge_base, brand_voice, safety_settings')
+                .select('business_context, knowledge_base, brand_voice, safety_settings')
                 .eq('user_id', mockUser.id)
                 .single();
 
@@ -45,9 +44,9 @@ export async function POST(request: Request) {
 
             if (business) {
                 if (business.business_context) businessContext = business.business_context;
-                if (business.ai_tone) preferredTone = business.ai_tone;
                 knowledgeBase = business.knowledge_base;
-                brandVoice = business.brand_voice;
+                // Use override if provided, otherwise fall back to DB
+                brandVoice = brandVoiceOverride || business.brand_voice;
                 safetySettings = business.safety_settings || { crisis_keywords: [] };
 
                 console.log('🔍 DEBUG: Knowledge Base passed to AI:', JSON.stringify(knowledgeBase, null, 2));
@@ -75,7 +74,6 @@ export async function POST(request: Request) {
             starRating,
             content,
             businessContext,
-            preferredTone,
             knowledgeBase,
             brandVoice
         );

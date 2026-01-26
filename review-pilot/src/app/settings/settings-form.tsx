@@ -8,16 +8,15 @@ import { updateSettings } from './actions';
 import { useState, useTransition } from 'react';
 import { KnowledgeBaseEditor } from '@/components/knowledge-base/knowledge-base-editor';
 import { KnowledgeBase, BrandVoice, SafetySettings } from '@/types';
-import { Slider } from '@/components/ui/slider';
-import { Building2, Sparkles, Fingerprint } from 'lucide-react';
 import { SmartIngestor } from '@/components/knowledge-base/smart-ingestor';
+import { BrandDNAConfig } from '@/components/brand-dna/brand-dna-config';
+import { Building2, Sparkles, Fingerprint } from 'lucide-react';
 
 // Types for the initial data passed from the server
 interface SettingsFormProps {
     initialData: {
         businessName: string;
         autoReplyThreshold: number;
-        aiTone: string;
         businessContext: string | null;
         knowledgeBase: KnowledgeBase | null;
         brandVoice: BrandVoice | null;
@@ -30,7 +29,6 @@ export function SettingsForm({ initialData }: SettingsFormProps) {
     const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
     const [threshold, setThreshold] = useState(initialData?.autoReplyThreshold || 4);
     const [businessName, setBusinessName] = useState(initialData?.businessName || 'Acme Corp');
-    const [aiTone, setAiTone] = useState(initialData?.aiTone || 'professional');
 
     // Initialize Knowledge Base from new column OR migrate legacy string
     const [knowledgeBase, setKnowledgeBase] = useState<KnowledgeBase>(() => {
@@ -47,7 +45,15 @@ export function SettingsForm({ initialData }: SettingsFormProps) {
 
     // Brand Voice state
     const [brandVoice, setBrandVoice] = useState<BrandVoice>(() => {
-        return initialData?.brandVoice || { tone_score: 5 };
+        // Initialize with complex defaults if legacy data or empty
+        if (initialData?.brandVoice && initialData.brandVoice.pillars) {
+            return initialData.brandVoice;
+        }
+        return {
+            pillars: { personality: 5, formality: 5, enthusiasm: 5, authority: 5 },
+            voiceSettings: { emojiPolicy: 'professional', perspective: 'collective', geoIntensity: 'subtle', signOffStyle: 'standard' },
+            bannedVocabulary: ['We value your business', 'Sorry for the inconvenience', 'commitment to excellence'] // Defaults
+        };
     });
 
     // Safety Settings state
@@ -65,7 +71,6 @@ export function SettingsForm({ initialData }: SettingsFormProps) {
         // Append controlled state values
         formData.set('autoReplyThreshold', threshold.toString());
         formData.set('businessName', businessName);
-        formData.set('aiTone', aiTone);
         // Serialize Knowledge Base
         formData.set('knowledgeBase', JSON.stringify(knowledgeBase));
         formData.set('brandVoice', JSON.stringify(brandVoice));
@@ -158,42 +163,12 @@ export function SettingsForm({ initialData }: SettingsFormProps) {
                         <input type="hidden" name="autoReplyThreshold" value={threshold} />
                     </div>
 
-                    <div className="space-y-2">
-                        <label htmlFor="aiTone" className="text-sm font-medium">AI Tone</label>
-                        <select
-                            id="aiTone"
-                            name="aiTone"
-                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                            value={aiTone}
-                            onChange={(e) => setAiTone(e.target.value)}
-                        >
-                            <option value="professional">Professional</option>
-                            <option value="friendly">Friendly</option>
-                            <option value="grateful">Grateful</option>
-                            <option value="empathetic">Empathetic</option>
-                            <option value="funny">Funny</option>
-                        </select>
-                    </div>
-
-                    {/* Brand Voice Slider */}
-                    <div className="space-y-3 pt-2">
-                        <label className="text-sm font-medium">Brand Voice Intensity (GEO)</label>
-                        <div className="flex items-center gap-4">
-                            <Slider
-                                value={[brandVoice.tone_score]}
-                                onValueChange={(value) => setBrandVoice({ ...brandVoice, tone_score: value[0] })}
-                                min={1}
-                                max={10}
-                                step={1}
-                                className="flex-1"
-                            />
-                            <span className="text-2xl font-bold w-12 text-center">{brandVoice.tone_score}</span>
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                            {brandVoice.tone_score <= 3 && "Formal, professional, minimal emojis"}
-                            {brandVoice.tone_score > 3 && brandVoice.tone_score <= 7 && "Warm, helpful, community-focused"}
-                            {brandVoice.tone_score > 7 && "Witty, bold, casual, expressive"}
-                        </p>
+                    {/* Brand DNA Config */}
+                    <div className="pt-4 border-t">
+                        <BrandDNAConfig
+                            value={brandVoice}
+                            onChange={setBrandVoice}
+                        />
                     </div>
 
                     {/* Safety Keywords */}
@@ -265,7 +240,7 @@ export function SettingsForm({ initialData }: SettingsFormProps) {
                         </CardTitle>
                         <CardDescription>Teach the AI about your business so it can write accurate replies.</CardDescription>
                     </div>
-                    <SmartIngestor onAddFact={(fact) => {
+                    <SmartIngestor onAddFact={(fact: any) => {
                         console.log("Added fact:", fact);
                         const data = knowledgeBase;
                         let newData = { ...data };

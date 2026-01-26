@@ -6,7 +6,6 @@ export async function generateReviewReply(
     starRating: number,
     reviewContent: string,
     businessContext?: string,
-    preferredTone?: string,
     knowledgeBase?: KnowledgeBase,
     brandVoice?: BrandVoice
 ): Promise<{ reply: string, isFallback: boolean }> {
@@ -21,21 +20,72 @@ export async function generateReviewReply(
         const genAI = new GoogleGenerativeAI(apiKey);
         const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
 
-        // Tone Mapping from Brand Voice (GEO Philosophy)
-        let tone = preferredTone;
-        if (!tone && brandVoice) {
-            const score = brandVoice.tone_score;
-            if (score <= 3) {
-                tone = "formal, professional, minimal emojis";
-            } else if (score <= 7) {
-                tone = "warm, helpful, community-focused";
+        // Tone configuration from Brand Voice (GEO Philosophy)
+        let dnaInstructions = "";
+        let toneDescription = "";
+
+        if (brandVoice && brandVoice.pillars) {
+            const { pillars, voiceSettings, bannedVocabulary } = brandVoice;
+
+            // 1. Map Pillars to Instructions
+            // 1. Map Pillars to Instructions (EXTREME WEIGHTS)
+            const formalityInstr =
+                pillars.formality <= 3 ? "CRITICAL: Use casual text-speak/slang (lol, thx, u). Write like a close friend. Lowercase allowed." :
+                    pillars.formality >= 8 ? "CRITICAL: Use highly formal, academic, or old-fashioned English. No contractions. 'It is', 'We are'." :
+                        "Use neutral, clear, standard business English.";
+
+            const personalityInstr =
+                pillars.personality <= 3 ? "CRITICAL: Be robotic, dry, and fact-focused. No emotion." :
+                    pillars.personality >= 8 ? "CRITICAL: Be extremely witty, crack a joke, or be playful/sassy." :
+                        "Warm, welcoming, uses the customer's name once.";
+
+            // Build enthusiasm instruction based on emoji policy
+            let enthusiasmInstr;
+            if (pillars.enthusiasm <= 3) {
+                enthusiasmInstr = "CRITICAL: Zero exclamation marks. Use periods only. Be calm/deadpan.";
+            } else if (pillars.enthusiasm >= 8) {
+                // Check if emojis should be included based on policy
+                const shouldIncludeEmojis = !voiceSettings || voiceSettings.emojiPolicy !== 'none';
+                enthusiasmInstr = shouldIncludeEmojis
+                    ? "CRITICAL: Use multiple exclamation marks!!! Use emojis (🎉, 🔥, 🍕) in EVERY sentence. High energy!"
+                    : "CRITICAL: Use multiple exclamation marks!!! High energy words ('Thrilled!', 'Amazing!', 'Love it!').";
             } else {
-                tone = "witty, bold, casual, expressive";
+                enthusiasmInstr = "1-2 exclamation marks. Use words like 'Happy' or 'Great'.";
             }
-        }
-        // Fallback if neither brandVoice nor preferredTone provided
-        if (!tone) {
-            tone = starRating >= 4 ? "grateful and professional" : "empathetic, apologetic, and professional";
+
+            const authorityInstr =
+                pillars.authority <= 3 ? "CRITICAL: Be extremely humble/servile. Apologize or thank profusely. You are 'at their service'." :
+                    pillars.authority >= 8 ? "CRITICAL: Speak with absolute authority. Educate the customer. You know best." :
+                        "Confidence tone. Assure the customer of quality.";
+
+            toneDescription = `Formality: ${pillars.formality}/10, Personality: ${pillars.personality}/10, Enthusiasm: ${pillars.enthusiasm}/10`;
+
+            // 2. Build DNA Block
+            dnaInstructions += `\n    BRAND DNA DIRECTIVES (STRICT):`;
+            dnaInstructions += `\n    - FORMALITY: ${formalityInstr}`;
+            dnaInstructions += `\n    - PERSONALITY: ${personalityInstr}`;
+            dnaInstructions += `\n    - ENTHUSIASM: ${enthusiasmInstr}`;
+            dnaInstructions += `\n    - AUTHORITY: ${authorityInstr}`;
+
+            // 3. Voice Settings
+            if (voiceSettings) {
+                if (voiceSettings.perspective) {
+                    if (voiceSettings.perspective === 'first') dnaInstructions += `\n    - PERSPECTIVE: CRITICAL: You are ONE person. Use "I", "Me", "My". Do NOT use "We".`;
+                    if (voiceSettings.perspective === 'collective') dnaInstructions += `\n    - PERSPECTIVE: CRITICAL: You are a TEAM. Use "We", "Us", "Our".`;
+                    if (voiceSettings.perspective === 'third') dnaInstructions += `\n    - PERSPECTIVE: CRITICAL: Use third-person or brand name (e.g. "The Management").`;
+                }
+                if (voiceSettings.emojiPolicy === 'none') dnaInstructions += `\n    - EMOJI POLICY: CRITICAL OVERRIDE: Do NOT use emojis, even if Enthusiasm is high.`;
+                if (voiceSettings.emojiPolicy === 'expressive') dnaInstructions += `\n    - EMOJI POLICY: CRITICAL: Use 2-3 emojis sprinkled WITHIN sentences throughout the text, not just at the end. Use specific food/context emojis (🍕, 🍷).`;
+                if (voiceSettings.signOffStyle === 'personal') dnaInstructions += `\n    - SIGN-OFF: Use a personal warm closing.`;
+            }
+
+            // 4. Banned Vocabulary
+            if (bannedVocabulary && bannedVocabulary.length > 0) {
+                dnaInstructions += `\n    - NEGATIVE CONSTRAINTS (NEVER USE): ${bannedVocabulary.map((w: string) => `"${w}"`).join(', ')}.`;
+            }
+        } else {
+            // Fallback if no brand voice configured
+            toneDescription = starRating >= 4 ? "grateful and professional" : "empathetic, apologetic, and professional";
         }
 
         // Construct Knowledge Base & GEO Instructions
@@ -151,7 +201,8 @@ export async function generateReviewReply(
     ${geoInstructions}
     
     INSTRUCTIONS:
-    1. Tone: ${tone}.
+    1. Tone: ${toneDescription}
+    ${dnaInstructions}
     2. Length: Concise (under 60 words).
     3. AUTHORITY SIGNAL: Mention a specific Team Member or Menu Item if the review context allows.
        - EXPERTISE BOOST: When mentioning team/items, include specific details (years of experience, certifications, specialties).
@@ -201,7 +252,7 @@ export async function extractKnowledgeFromText(text: string): Promise<{
         if (!apiKey) throw new Error("API key missing");
 
         const genAI = new GoogleGenerativeAI(apiKey);
-        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
 
         const prompt = `

@@ -1,7 +1,18 @@
 // GEO Platform Types
 export type BrandVoice = {
-    tone_score: number; // 1-10
-    description?: string;
+    pillars: {
+        personality: number; // 1-10 (Serious -> Witty)
+        formality: number;   // 1-10 (Casual -> Formal)
+        enthusiasm: number;  // 1-10 (Calm -> Excited)
+        authority: number;   // 1-10 (Humble -> Expert)
+    };
+    voiceSettings: {
+        emojiPolicy: 'none' | 'professional' | 'expressive';
+        perspective: 'first' | 'collective' | 'third';    // I / We / The Team
+        geoIntensity: 'off' | 'subtle' | 'aggressive';
+        signOffStyle: 'standard' | 'cta' | 'personal';
+    };
+    bannedVocabulary: string[];
 };
 
 export type SafetySettings = {
