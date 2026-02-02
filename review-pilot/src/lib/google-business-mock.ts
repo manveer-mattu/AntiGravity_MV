@@ -13,62 +13,90 @@ export interface GoogleReview {
     isFallback?: boolean;
     sentiment?: Sentiment;
     topics?: string[];
+    entities?: string[];
 }
 
 const TOPICS_LIST = ['Food', 'Service', 'Price', 'Ambiance', 'Cleanliness', 'Staff', 'Speed', 'Parking', 'Music', 'Drinks'];
-const NAMES_LIST = ['Alice', 'Bob', 'Charlie', 'David', 'Emma', 'Frank', 'Grace', 'Henry', 'Ivy', 'Jack', 'Kate', 'Liam', 'Mia', 'Noah', 'Olivia', 'Peter', 'Quinn', 'Ryan', 'Sophia', 'Thomas'];
-const COMMENTS_POSITIVE = [
-    'Absolutely loved it!', 'Great service and amazing food.', 'Will definitely come back.', 'The staff was so helpful.', 'Best experience in a long time.', 'Highly recommended!', 'Five stars for sure.', 'A hidden gem.', 'Delicious meals and great atmosphere.', 'Everything was perfect.'
+const NAMES_LIST = ['Alice', 'Bob', 'Charlie', 'David', 'Emma', 'Frank', 'Grace', 'Henry', 'Ivy', 'Jack', 'Kate', 'Liam', 'Mia', 'Noah', 'Olivia', 'Peter', 'Quinn', 'Ryan', 'Sophia', 'Thomas', 'James', 'Lucas', 'Ethan', 'Alexander', 'Isabella', 'Ava', 'Mia', 'Charlotte', 'Amelia', 'Harper'];
+
+// Expanded Comment Templates for Variety
+const POSITIVE_FOOD = [
+    'The pasta was absolutely divine!', 'Best pizza I have had in years.', 'The truffle fries are a must-try.', 'Incredible extensive menu.', 'Dessert was the highlight of the night.', 'Fresh ingredients and great presentation.', 'Flavor explosion in every bite!'
 ];
-const COMMENTS_NEUTRAL = [
-    'It was okay.', 'Food was good but service was slow.', 'Decent place but a bit pricey.', 'Nothing special.', 'Average experience.', 'Good but could be better.', 'Not bad, not great.', 'Okay for a quick bite.', 'Standard quality.', 'Mixed feelings about this place.'
+const POSITIVE_SERVICE = [
+    'The staff went above and beyond.', 'Our server was so attentive and kind.', 'Received a warm welcome upon entering.', 'Service was quick despite the busy rush.', 'Everyone had a smile on their face.', 'Felt treated like royalty.'
 ];
-const COMMENTS_NEGATIVE = [
-    'Terrible service.', 'Food was cold.', 'Rude staff.', 'Way too expensive for what you get.', 'Dirty tables.', 'Waited forever.', 'Never coming back.', 'Disappointing experience.', 'Avoid this place.', 'Total waste of money.'
+const POSITIVE_AMBIANCE = [
+    'Love the cozy vibe here.', 'Perfect lighting for a date night.', 'Great music playlist!', 'The decor is stunning.', 'Very clean and organized.', 'A truly relaxing atmosphere.'
 ];
+
+const NEUTRAL_MIXED = [
+    'Food was good but the service was slow.', 'Decent place, but a bit pricey for the portion size.', 'Nice atmosphere, but the music was too loud.', 'It was okay, nothing to write home about.', 'Standard experience, met expectations.', 'Good for a quick bite, but not a special occasion.', 'The main course was great, but appetizers were cold.'
+];
+
+const NEGATIVE_ISSUES = [
+    'Waited over 45 minutes for our table.', 'The food arrived cold and tasteless.', 'Rude staff member at the front desk.', 'Way too expensive for the quality.', 'Tables were sticky and dirty.', 'Order was completely wrong.', 'Impossible to find parking nearby.', 'Never coming back, terrible experience.'
+];
+
+function getRandomElement<T>(array: T[]): T {
+    return array[Math.floor(Math.random() * array.length)];
+}
 
 function generateMockReviews(count: number): GoogleReview[] {
     const reviews: GoogleReview[] = [];
     const now = Date.now();
 
     for (let i = 0; i < count; i++) {
-        const isPositive = Math.random() > 0.4; // 60% positive bias
-        const isNeutral = !isPositive && Math.random() > 0.5;
+        const rand = Math.random();
 
-        let sentiment: Sentiment = 'positive';
-        let rating = 5;
-        let pool = COMMENTS_POSITIVE;
+        let sentiment: Sentiment;
+        let rating: number;
+        let content: string;
 
-        if (isNeutral) {
+        if (rand > 0.35) {
+            // 65% Positive
+            sentiment = 'positive';
+            rating = 4 + (Math.random() > 0.7 ? 1 : 0); // Mostly 4s and 5s
+            // Mix of food, service, ambiance (mostly food)
+            const type = Math.random();
+            if (type < 0.5) content = getRandomElement(POSITIVE_FOOD);
+            else if (type < 0.8) content = getRandomElement(POSITIVE_SERVICE);
+            else content = getRandomElement(POSITIVE_AMBIANCE);
+
+            // Add some generic praise occasionally
+            if (Math.random() > 0.8) content += " Highly recommended!";
+
+        } else if (rand > 0.15) {
+            // 20% Neutral
             sentiment = 'neutral';
-            rating = 3 + Math.floor(Math.random() * 1); // 3 or 4
-            pool = COMMENTS_NEUTRAL;
-        } else if (!isPositive) {
-            sentiment = 'negative';
-            rating = 1 + Math.floor(Math.random() * 2); // 1 or 2
-            pool = COMMENTS_NEGATIVE;
+            rating = 3;
+            content = getRandomElement(NEUTRAL_MIXED);
         } else {
-            // Positive
-            rating = 4 + Math.floor(Math.random() * 2); // 4 or 5
+            // 15% Negative
+            sentiment = 'negative';
+            rating = 1 + (Math.random() > 0.5 ? 1 : 0); // 1 or 2
+            content = getRandomElement(NEGATIVE_ISSUES);
         }
 
-        // Random date within last 30 days
-        const daysAgo = Math.floor(Math.random() * 30);
-        const postedAt = new Date(now - 1000 * 60 * 60 * 24 * daysAgo).toISOString();
+        // Random date within last 6 months (approx 180 days)
+        const daysAgo = Math.floor(Math.random() * 180);
+        // Add some time randomness within the day
+        const timeOffset = Math.floor(Math.random() * 1000 * 60 * 60 * 12);
+        const postedAt = new Date(now - (1000 * 60 * 60 * 24 * daysAgo) - timeOffset).toISOString();
 
         // Random topics (1 to 3)
         const numTopics = 1 + Math.floor(Math.random() * 3);
         const reviewTopics = [];
         for (let j = 0; j < numTopics; j++) {
-            reviewTopics.push(TOPICS_LIST[Math.floor(Math.random() * TOPICS_LIST.length)]);
+            reviewTopics.push(getRandomElement(TOPICS_LIST));
         }
 
         reviews.push({
             id: `gen-${i}`,
-            reviewerName: `${NAMES_LIST[Math.floor(Math.random() * NAMES_LIST.length)]} ${String.fromCharCode(65 + Math.floor(Math.random() * 26))}.`,
+            reviewerName: `${getRandomElement(NAMES_LIST)} ${String.fromCharCode(65 + Math.floor(Math.random() * 26))}.`,
             starRating: rating,
-            content: pool[Math.floor(Math.random() * pool.length)],
-            status: Math.random() > 0.8 ? 'pending' : 'replied',
+            content: content,
+            status: Math.random() > 0.7 ? 'replied' : (Math.random() > 0.5 ? 'draft' : 'pending'), // Mix of statuses
             postedAt,
             sentiment,
             topics: Array.from(new Set(reviewTopics)) // Unique topics
@@ -79,8 +107,8 @@ function generateMockReviews(count: number): GoogleReview[] {
     return reviews.sort((a, b) => new Date(b.postedAt).getTime() - new Date(a.postedAt).getTime());
 }
 
-// Generate ~100 reviews
-const MOCK_REVIEWS: GoogleReview[] = generateMockReviews(100);
+// Generate 200 reviews
+const MOCK_REVIEWS: GoogleReview[] = generateMockReviews(200);
 
 export async function fetchMockReviews(): Promise<GoogleReview[]> {
     // Simulate network delay

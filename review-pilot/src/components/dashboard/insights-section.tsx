@@ -3,14 +3,13 @@ import { TrendingUp, AlertTriangle, Megaphone, ArrowUpRight, ArrowDownRight, Che
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
+import { getSentimentTrend, getImpactDrivers, getTopEntities } from "@/lib/analytics-utils";
 
-interface ExtendedReview {
-    id: string;
-    starRating: number;
+import { GoogleReview } from "@/lib/google-business-mock";
+
+interface ExtendedReview extends GoogleReview {
     sentiment?: 'positive' | 'neutral' | 'negative';
     topics?: string[];
-    postedAt: string;
-    content: string;
 }
 
 interface InsightsSectionProps {
@@ -18,31 +17,19 @@ interface InsightsSectionProps {
 }
 
 export function InsightsSection({ reviews }: InsightsSectionProps) {
-    // 1. Calculate Insights
-    const positiveReviews = reviews.filter(r => r.sentiment === 'positive' || r.starRating >= 4);
-    const negativeReviews = reviews.filter(r => r.sentiment === 'negative' || r.starRating <= 2);
+    const sentimentTrend = getSentimentTrend(reviews);
+    const impactDrivers = getImpactDrivers(reviews);
+    const topEntities = getTopEntities(reviews);
 
-    // Helper to find top topic
-    const getTopTopic = (reviewList: ExtendedReview[]) => {
-        const topicCounts: Record<string, number> = {};
-        reviewList.forEach(r => {
-            r.topics?.forEach(t => {
-                topicCounts[t] = (topicCounts[t] || 0) + 1;
-            });
-        });
-        const sorted = Object.entries(topicCounts).sort((a, b) => b[1] - a[1]);
-        return sorted.length > 0 ? sorted[0][0] : null;
-    };
+    // Calculate velocity (last 3 days vs previous 3 days)
+    const currentVelocity = sentimentTrend.slice(-3).reduce((acc, p) => acc + p.score, 0) / 3;
+    const previousVelocity = sentimentTrend.slice(-6, -3).reduce((acc, p) => acc + p.score, 0) / 3;
+    const velocityDiff = currentVelocity - previousVelocity;
 
-    const topPositiveTopic = getTopTopic(positiveReviews) || "General Service";
-    const topNegativeTopic = getTopTopic(negativeReviews) || "Wait Time";
+    const topNegativeDriver = impactDrivers.find(d => d.sentiment === 'negative');
+    const topPositiveDriver = impactDrivers.find(d => d.sentiment === 'positive');
 
-    // Recent Trend (Last 7 days vs Previous 30 days) - Mock logic for now as data might be sparse
-    // In real app: timestamp comparison. Here: simple check on last 5 reviews.
-    const recentReviews = reviews.slice(0, 5);
-    const recentAvg = recentReviews.reduce((acc, r) => acc + r.starRating, 0) / (recentReviews.length || 1);
-    const overallAvg = reviews.reduce((acc, r) => acc + r.starRating, 0) / (reviews.length || 1);
-    const isTrendingUp = recentAvg >= overallAvg;
+    const topStaff = topEntities.length > 0 ? topEntities[0] : null;
 
     return (
         <section className="space-y-4 mb-4">
@@ -54,7 +41,7 @@ export function InsightsSection({ reviews }: InsightsSectionProps) {
             </div>
 
             <div className="grid gap-4 md:grid-cols-3">
-                {/* Insight 1: Service Pulse (Trend) */}
+                {/* Insight 1: Sentiment Velocity */}
                 <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -63,32 +50,34 @@ export function InsightsSection({ reviews }: InsightsSectionProps) {
                     <Card className="relative overflow-hidden h-full border-none shadow-md bg-gradient-to-br from-indigo-50 to-white hover:shadow-lg transition-all duration-300 group">
                         <CardHeader className="pb-2 relative z-10">
                             <CardTitle className="text-sm font-medium text-indigo-900 flex items-center justify-between">
-                                Service Pulse
-                                {isTrendingUp ? (
-                                    <TrendingUp className="h-4 w-4 text-emerald-600" />
-                                ) : (
-                                    <TrendingUp className="h-4 w-4 text-amber-600 rotate-180" />
-                                )}
+                                Sentiment Velocity
+                                <TrendingUp className={cn("h-4 w-4", velocityDiff >= 0 ? "text-emerald-600" : "text-amber-600 rotate-180")} />
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="relative z-10 space-y-3">
                             <div>
                                 <div className="text-2xl font-bold text-slate-800 flex items-baseline gap-2">
-                                    {isTrendingUp ? "Steady Growth" : "Attention Needed"}
-                                    <span className={cn("text-xs font-medium px-2 py-0.5 rounded-full bg-white/50 border", isTrendingUp ? "text-emerald-700 border-emerald-200" : "text-amber-700 border-amber-200")}>
-                                        {isTrendingUp ? "+4.2%" : "-2.1%"}
+                                    {Math.round(currentVelocity)}%
+                                    <span className={cn("text-xs font-medium px-2 py-0.5 rounded-full bg-white/50 border", velocityDiff >= 0 ? "text-emerald-700 border-emerald-200" : "text-amber-700 border-amber-200")}>
+                                        {velocityDiff > 0 ? '+' : ''}{Math.round(velocityDiff)}%
                                     </span>
                                 </div>
-                                <p className="text-xs text-slate-500 mt-1">
-                                    {isTrendingUp
-                                        ? "Recent reviews show improved sentiment scores."
-                                        : "Recent sentiment is tracking slightly below average."}
+                                <div className="h-8 w-full mt-2 flex items-end gap-1">
+                                    {sentimentTrend.map((point, i) => (
+                                        <div
+                                            key={i}
+                                            className="flex-1 bg-indigo-500/20 rounded-t-sm hover:bg-indigo-500/40 transition-colors relative group/bar"
+                                            style={{ height: `${point.score}%` }}
+                                        >
+                                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover/bar:block text-[10px] bg-slate-800 text-white px-1 rounded whitespace-nowrap z-20">
+                                                {point.date.split('-').slice(1).join('/')}: {point.score}%
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                                <p className="text-xs text-slate-500 mt-2">
+                                    14-day tracking. {velocityDiff >= 0 ? "Momentum is positive." : "Momentum is slowing down."}
                                 </p>
-                            </div>
-                            <div className="pt-2">
-                                <Button size="sm" variant="outline" className="w-full bg-white/60 hover:bg-white text-indigo-700 border-indigo-100 shadow-sm text-xs h-8">
-                                    View Trend Report
-                                </Button>
                             </div>
                         </CardContent>
                         {/* Decorative Background */}
@@ -96,7 +85,7 @@ export function InsightsSection({ reviews }: InsightsSectionProps) {
                     </Card>
                 </motion.div>
 
-                {/* Insight 2: Quality Focus (Pain Point) */}
+                {/* Insight 2: Key Impact Drivers */}
                 <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -105,30 +94,50 @@ export function InsightsSection({ reviews }: InsightsSectionProps) {
                     <Card className="relative overflow-hidden h-full border-none shadow-md bg-gradient-to-br from-amber-50 to-white hover:shadow-lg transition-all duration-300 group">
                         <CardHeader className="pb-2 relative z-10">
                             <CardTitle className="text-sm font-medium text-amber-900 flex items-center justify-between">
-                                Priority Focus
+                                Impact Drivers
                                 <AlertTriangle className="h-4 w-4 text-amber-600" />
                             </CardTitle>
                         </CardHeader>
-                        <CardContent className="relative z-10 space-y-3">
-                            <div>
-                                <div className="text-2xl font-bold text-slate-800">
-                                    "{topNegativeTopic}"
+                        <CardContent className="relative z-10 space-y-4">
+                            {topNegativeDriver && (
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <div className="h-8 w-8 rounded-full bg-red-100 flex items-center justify-center text-lg">👇</div>
+                                        <div>
+                                            <div className="text-sm font-semibold text-slate-800">{topNegativeDriver.topic}</div>
+                                            <div className="text-xs text-slate-500"> dragging rating down</div>
+                                        </div>
+                                    </div>
+                                    <div className="text-sm font-bold text-red-600">
+                                        {topNegativeDriver.impactScore.toFixed(1)} impact
+                                    </div>
                                 </div>
-                                <p className="text-xs text-slate-500 mt-1">
-                                    Recurring theme in <span className="font-medium text-slate-700">{negativeReviews.length > 0 ? Math.round((negativeReviews.filter(r => r.topics?.includes(topNegativeTopic)).length / negativeReviews.length) * 100) : 0}%</span> of negative reviews.
-                                </p>
-                            </div>
-                            <div className="pt-2">
-                                <Button size="sm" className="w-full bg-amber-100 hover:bg-amber-200 text-amber-900 border-none shadow-none text-xs h-8 justify-start px-3">
-                                    <span className="mr-2">⚡</span> Draft Strategy Plan
-                                </Button>
-                            </div>
+                            )}
+
+                            {topPositiveDriver && (
+                                <div className="flex items-center justify-between pt-2 border-t border-amber-100/50">
+                                    <div className="flex items-center gap-2">
+                                        <div className="h-8 w-8 rounded-full bg-emerald-100 flex items-center justify-center text-lg">☝️</div>
+                                        <div>
+                                            <div className="text-sm font-semibold text-slate-800">{topPositiveDriver.topic}</div>
+                                            <div className="text-xs text-slate-500"> boosting your score</div>
+                                        </div>
+                                    </div>
+                                    <div className="text-sm font-bold text-emerald-600">
+                                        +{topPositiveDriver.impactScore.toFixed(1)} impact
+                                    </div>
+                                </div>
+                            )}
+
+                            {!topNegativeDriver && !topPositiveDriver && (
+                                <div className="text-sm text-slate-500 italic">Not enough data to calculate impact drivers yet.</div>
+                            )}
                         </CardContent>
                         <div className="absolute right-0 bottom-0 h-24 w-24 bg-amber-500/10 blur-2xl rounded-full -mr-6 -mb-6" />
                     </Card>
                 </motion.div>
 
-                {/* Insight 3: Marketing Opportunity (Praise) */}
+                {/* Insight 3: Staff Spotlight */}
                 <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -137,24 +146,30 @@ export function InsightsSection({ reviews }: InsightsSectionProps) {
                     <Card className="relative overflow-hidden h-full border-none shadow-md bg-gradient-to-br from-purple-50 to-white hover:shadow-lg transition-all duration-300 group">
                         <CardHeader className="pb-2 relative z-10">
                             <CardTitle className="text-sm font-medium text-purple-900 flex items-center justify-between">
-                                Marketing Edge
+                                Spotlight Mention
                                 <Megaphone className="h-4 w-4 text-purple-600" />
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="relative z-10 space-y-3">
-                            <div>
-                                <div className="text-2xl font-bold text-slate-800">
-                                    "{topPositiveTopic}"
+                            {topStaff ? (
+                                <div>
+                                    <div className="text-2xl font-bold text-slate-800 bg-clip-text text-transparent bg-gradient-to-r from-purple-600 to-pink-600">
+                                        "{topStaff.entity}"
+                                    </div>
+                                    <p className="text-xs text-slate-500 mt-1">
+                                        is a star! Mentioned positively in <span className="font-medium text-slate-700">{topStaff.count}</span> recent reviews.
+                                    </p>
+                                    <div className="pt-2">
+                                        <Button size="sm" className="w-full bg-purple-600 hover:bg-purple-700 text-white border-none shadow-md shadow-purple-200 text-xs h-8">
+                                            Recognize {topStaff.entity}
+                                        </Button>
+                                    </div>
                                 </div>
-                                <p className="text-xs text-slate-500 mt-1">
-                                    Your strongest asset. Mentioned in <span className="font-medium text-slate-700">{positiveReviews.slice(0, 3).length}+</span> recent 5-star reviews.
-                                </p>
-                            </div>
-                            <div className="pt-2">
-                                <Button size="sm" className="w-full bg-purple-600 hover:bg-purple-700 text-white border-none shadow-md shadow-purple-200 text-xs h-8">
-                                    Create Promo Post
-                                </Button>
-                            </div>
+                            ) : (
+                                <div className="text-sm text-slate-500 italic pt-2">
+                                    No specific staff or items trending in recent reviews.
+                                </div>
+                            )}
                         </CardContent>
                         <div className="absolute right-0 top-0 h-32 w-32 bg-purple-500/5 blur-3xl rounded-full -mr-10 -mt-10" />
                     </Card>

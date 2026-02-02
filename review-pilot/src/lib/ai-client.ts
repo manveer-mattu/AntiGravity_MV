@@ -18,7 +18,7 @@ export async function generateReviewReply(
         if (!apiKey) throw new Error("GOOGLE_GENERATIVE_AI_API_KEY is not set");
 
         const genAI = new GoogleGenerativeAI(apiKey);
-        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
+        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
         // Tone configuration from Brand Voice (GEO Philosophy)
         let dnaInstructions = "";
@@ -254,7 +254,7 @@ export async function extractKnowledgeFromText(text: string): Promise<{
         if (!apiKey) throw new Error("API key missing");
 
         const genAI = new GoogleGenerativeAI(apiKey);
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
 
         const prompt = `
@@ -354,5 +354,60 @@ export async function extractKnowledgeFromText(text: string): Promise<{
             subtitle: text.slice(0, 50),
             extractedContext: text
         };
+    }
+}
+
+export async function analyzeSentiment(text: string): Promise<{
+    sentiment: 'positive' | 'neutral' | 'negative';
+    score: number;
+    topics: string[];
+    entities: string[];
+}> {
+    // Default fallback
+    const fallback = {
+        sentiment: 'neutral' as const,
+        score: 50,
+        topics: [],
+        entities: []
+    };
+
+    try {
+        const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+        if (!apiKey) return fallback;
+
+        const genAI = new GoogleGenerativeAI(apiKey);
+        // User requested Gemini 2.5 Flash for analysis
+        const model = genAI.getGenerativeModel({
+            model: "gemini-2.5-flash",
+            generationConfig: { responseMimeType: "application/json" }
+        });
+
+        const prompt = `
+    ROLE: Data Analyst
+    TASK: Analyze the sentiment of this restaurant review.
+    INPUT: "${text}"
+    
+    OUTPUT JSON FORMAT:
+    {
+      "sentiment": "positive" | "neutral" | "negative",
+      "score": number (0-100, where 0 is worst, 100 is best),
+      "topics": string[] (e.g. "Service", "Food", "Ambiance", "Value", "Wait Time"),
+      "entities": string[] (Specific names of people, dishes, or unique items mentioned, e.g. "Chef Antonio", "Truffle Pasta")
+    }
+    `;
+
+        const result = await model.generateContent(prompt);
+        const textResponse = result.response.text();
+        const json = JSON.parse(textResponse);
+
+        return {
+            sentiment: (json.sentiment === 'positive' || json.sentiment === 'negative' || json.sentiment === 'neutral') ? json.sentiment : 'neutral',
+            score: typeof json.score === 'number' ? json.score : 50,
+            topics: Array.isArray(json.topics) ? json.topics : [],
+            entities: Array.isArray(json.entities) ? json.entities : []
+        };
+    } catch (error) {
+        console.error("Sentiment Analysis Failed:", error);
+        return fallback;
     }
 }

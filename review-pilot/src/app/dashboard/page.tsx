@@ -17,6 +17,7 @@ import { SentimentTrend } from '@/components/dashboard/charts/sentiment-trend';
 import { RatingDistribution } from '@/components/dashboard/charts/rating-distribution';
 import { TopicSentiment } from '@/components/dashboard/charts/topic-sentiment';
 import { InsightsSection } from '@/components/dashboard/insights-section';
+import { AverageRatingTile } from '@/components/dashboard/tiles/average-rating-tile';
 
 // Temporary cast until server action is fully typed with new fields
 // In a real app, we'd update the action return type.
@@ -37,9 +38,17 @@ export default function Dashboard() {
             getReviews(),
             import('@/app/actions/analytics').then(mod => mod.getReviewStats())
         ]).then(([reviewsData, statsData]) => {
+            // 1. Set initial basic data (fast load)
             setReviews(reviewsData as ExtendedReview[]);
             setStats(statsData);
             setLoading(false);
+
+            // 2. Trigger AI Enrichment (progressive enhancement)
+            import('@/app/actions/analysis').then(({ enrichReviewsWithAI }) => {
+                enrichReviewsWithAI(reviewsData as ExtendedReview[]).then(enrichedReviews => {
+                    setReviews(enrichedReviews);
+                });
+            });
         });
     }, []);
 
@@ -141,21 +150,7 @@ export default function Dashboard() {
                                 <Users className="absolute -bottom-4 -right-4 h-24 w-24 text-blue-100/50 -rotate-12 pointer-events-none" />
                             </Card>
 
-                            <Card className="relative overflow-hidden border-none shadow-md bg-gradient-to-br from-amber-50 to-white hover:shadow-lg transition-shadow duration-300">
-                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative z-10">
-                                    <CardTitle className="text-sm font-medium text-slate-600">Average Rating</CardTitle>
-                                </CardHeader>
-                                <CardContent className="relative z-10">
-                                    <div className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-amber-500 to-orange-600">
-                                        {avgRating.toFixed(1)}
-                                    </div>
-                                    <p className="text-xs font-medium text-slate-500 mt-1 flex items-center gap-1">
-                                        <Star className="h-3 w-3 fill-amber-500 text-amber-500" />
-                                        {reviews.filter(r => r.starRating === 5).length} five-star reviews
-                                    </p>
-                                </CardContent>
-                                <Star className="absolute -bottom-4 -right-4 h-24 w-24 text-amber-100/50 -rotate-12 pointer-events-none fill-amber-100/30" />
-                            </Card>
+                            <AverageRatingTile reviews={reviews} avgRating={avgRating} />
 
                             <Card className="relative overflow-hidden border-none shadow-md bg-gradient-to-br from-emerald-50 to-white hover:shadow-lg transition-shadow duration-300">
                                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative z-10">
