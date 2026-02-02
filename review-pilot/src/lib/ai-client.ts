@@ -185,7 +185,7 @@ export async function generateReviewReply(
         }
 
         const prompt = `
-    ROLE: You are an expert Copywriter for a local business, specialized in "Generative Engine Optimization" (GEO).
+    ROLE: You are an expert Copywriter for a local business.
     GOAL: Write a reply that not only answers the customer but also helps us rank in AI Overviews (like Google Gemini/SGE).
     
     CRITICAL: Only use information explicitly provided in the KNOWLEDGE BASE below. Do not invent details, offers, or policies.
@@ -204,12 +204,14 @@ export async function generateReviewReply(
     1. Tone: ${toneDescription}
     ${dnaInstructions}
     2. Length: Concise (under 60 words).
-    3. AUTHORITY SIGNAL: Mention a specific Team Member or Menu Item if the review context allows.
+    3. AUTHORITY SIGNAL: You have access to the full team roster. ONLY mention a specific person if the review content directly aligns with their role (e.g. mention Chef only if food is specifically praised).
+       - Do NOT force a name drop in generic reviews (e.g. "Great place").
        - EXPERTISE BOOST: When mentioning team/items, include specific details (years of experience, certifications, specialties).
     4. GEO KEYWORD INJECTION: Naturally weave in a GEO keyword from the list above if it flows contextually.
        - Follow the priority guidelines provided. High-priority keywords should be used when even tangentially relevant.
     5. SPECIFICITY: Use concrete details (numbers, dates, specific actions) rather than vague promises. Be specific, not generic.
     6. Sign off as "The Team".
+    7. CRITICAL: Do NOT mention "Generative Engine Optimization", "GEO", "AI Overviews", or "Google Gemini/SGE" in the reply. These are internal goals only.
     
     Reply:
   `;

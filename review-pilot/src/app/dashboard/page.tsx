@@ -16,6 +16,7 @@ import { ReviewCard } from '@/components/review-card';
 import { SentimentTrend } from '@/components/dashboard/charts/sentiment-trend';
 import { RatingDistribution } from '@/components/dashboard/charts/rating-distribution';
 import { TopicSentiment } from '@/components/dashboard/charts/topic-sentiment';
+import { InsightsSection } from '@/components/dashboard/insights-section';
 
 // Temporary cast until server action is fully typed with new fields
 // In a real app, we'd update the action return type.
@@ -127,49 +128,70 @@ export default function Dashboard() {
                     <div className="space-y-6 mb-10">
                         {/* Key Metrics Row */}
                         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                            <Card>
-                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                    <CardTitle className="text-sm font-medium">Total Reviews</CardTitle>
-                                    <Users className="h-4 w-4 text-muted-foreground" />
+                            <Card className="relative overflow-hidden border-none shadow-md bg-gradient-to-br from-blue-50 to-white hover:shadow-lg transition-shadow duration-300">
+                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative z-10">
+                                    <CardTitle className="text-sm font-medium text-slate-600">Total Reviews</CardTitle>
                                 </CardHeader>
-                                <CardContent>
-                                    <div className="text-2xl font-bold">{reviews.length}</div>
-                                    <p className="text-xs text-muted-foreground">in last 30 days</p>
+                                <CardContent className="relative z-10">
+                                    <div className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600">
+                                        {reviews.length}
+                                    </div>
+                                    <p className="text-xs font-medium text-slate-500 mt-1">in last 30 days</p>
                                 </CardContent>
+                                <Users className="absolute -bottom-4 -right-4 h-24 w-24 text-blue-100/50 -rotate-12 pointer-events-none" />
                             </Card>
-                            <Card>
-                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                    <CardTitle className="text-sm font-medium">Average Rating</CardTitle>
-                                    <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
+
+                            <Card className="relative overflow-hidden border-none shadow-md bg-gradient-to-br from-amber-50 to-white hover:shadow-lg transition-shadow duration-300">
+                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative z-10">
+                                    <CardTitle className="text-sm font-medium text-slate-600">Average Rating</CardTitle>
                                 </CardHeader>
-                                <CardContent>
-                                    <div className="text-2xl font-bold">{avgRating.toFixed(1)}</div>
-                                    <p className="text-xs text-muted-foreground">
+                                <CardContent className="relative z-10">
+                                    <div className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-amber-500 to-orange-600">
+                                        {avgRating.toFixed(1)}
+                                    </div>
+                                    <p className="text-xs font-medium text-slate-500 mt-1 flex items-center gap-1">
+                                        <Star className="h-3 w-3 fill-amber-500 text-amber-500" />
                                         {reviews.filter(r => r.starRating === 5).length} five-star reviews
                                     </p>
                                 </CardContent>
+                                <Star className="absolute -bottom-4 -right-4 h-24 w-24 text-amber-100/50 -rotate-12 pointer-events-none fill-amber-100/30" />
                             </Card>
-                            <Card>
-                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                    <CardTitle className="text-sm font-medium">Sentiment Score</CardTitle>
-                                    <TrendingUp className={cn("h-4 w-4", sentimentScore >= 0 ? "text-green-500" : "text-red-500")} />
+
+                            <Card className="relative overflow-hidden border-none shadow-md bg-gradient-to-br from-emerald-50 to-white hover:shadow-lg transition-shadow duration-300">
+                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative z-10">
+                                    <CardTitle className="text-sm font-medium text-slate-600">Sentiment Score</CardTitle>
                                 </CardHeader>
-                                <CardContent>
-                                    <div className="text-2xl font-bold">{sentimentScore > 0 ? '+' : ''}{sentimentScore}</div>
-                                    <p className="text-xs text-muted-foreground">Net Sentiment Score</p>
+                                <CardContent className="relative z-10">
+                                    <div className={cn(
+                                        "text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r",
+                                        sentimentScore >= 0 ? "from-emerald-500 to-green-600" : "from-red-500 to-rose-600"
+                                    )}>
+                                        {sentimentScore > 0 ? '+' : ''}{sentimentScore}
+                                    </div>
+                                    <p className="text-xs font-medium text-slate-500 mt-1">Net Sentiment Score</p>
                                 </CardContent>
+                                <TrendingUp className={cn(
+                                    "absolute -bottom-4 -right-4 h-24 w-24 -rotate-12 pointer-events-none",
+                                    sentimentScore >= 0 ? "text-emerald-100/50" : "text-red-100/50"
+                                )} />
                             </Card>
-                            <Card>
-                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                    <CardTitle className="text-sm font-medium">Pending</CardTitle>
-                                    <MessageSquare className="h-4 w-4 text-muted-foreground" />
+
+                            <Card className="relative overflow-hidden border-none shadow-md bg-gradient-to-br from-purple-50 to-white hover:shadow-lg transition-shadow duration-300">
+                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative z-10">
+                                    <CardTitle className="text-sm font-medium text-slate-600">Pending</CardTitle>
                                 </CardHeader>
-                                <CardContent>
-                                    <div className="text-2xl font-bold">{pendingCount}</div>
-                                    <p className="text-xs text-muted-foreground">Reviews awaiting reply</p>
+                                <CardContent className="relative z-10">
+                                    <div className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-600 to-violet-600">
+                                        {pendingCount}
+                                    </div>
+                                    <p className="text-xs font-medium text-slate-500 mt-1">Reviews awaiting reply</p>
                                 </CardContent>
+                                <MessageSquare className="absolute -bottom-4 -right-4 h-24 w-24 text-purple-100/50 -rotate-12 pointer-events-none" />
                             </Card>
                         </div>
+
+                        {/* AI Insights & Actions */}
+                        <InsightsSection reviews={reviews} />
 
                         {/* Charts Grid */}
                         <div className="grid gap-4 md:grid-cols-4">
