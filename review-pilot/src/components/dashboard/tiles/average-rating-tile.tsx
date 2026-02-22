@@ -99,10 +99,10 @@ export function AverageRatingTile({ reviews, avgRating }: AverageRatingTileProps
                     )}
                     transition={{ type: "spring", stiffness: 300, damping: 30 }}
                 >
-                    <CardContent className={cn("p-6 h-full flex flex-col", isExpanded ? "gap-4" : "gap-2")}>
+                    <CardContent className={cn("p-6 h-full flex flex-col", isExpanded ? "gap-2" : "gap-2")}>
 
                         {/* Header Section */}
-                        <div className="flex flex-row items-center justify-between shrink-0">
+                        <div className={cn("flex flex-row items-center justify-between shrink-0", isExpanded && "pb-2")}>
                             <motion.h3 layoutId="title" className="text-sm font-semibold text-slate-500 uppercase tracking-wider">
                                 Average Rating
                             </motion.h3>
@@ -117,7 +117,7 @@ export function AverageRatingTile({ reviews, avgRating }: AverageRatingTileProps
                         </div>
 
                         {/* Main Stats Row */}
-                        <div className={cn("flex", isExpanded ? "items-end justify-between gap-4" : "flex-col items-start")}>
+                        <div className={cn("flex", isExpanded ? "items-end justify-between gap-3" : "flex-col items-start")}>
 
                             {/* Big Number & Star */}
                             <motion.div layoutId="grid-view-rating" className="flex items-end gap-3 z-10 shrink-0">
@@ -186,9 +186,9 @@ export function AverageRatingTile({ reviews, avgRating }: AverageRatingTileProps
                                     animate={{ opacity: 1, y: 0 }}
                                     exit={{ opacity: 0, scale: 0.95 }}
                                     transition={{ delay: 0.15 }}
-                                    className="mt-4 flex flex-col gap-3 border-t border-slate-100 pt-4"
+                                    className="flex flex-col gap-2.5 border-t border-slate-100 pt-3 mt-1"
                                 >
-                                    <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Rating Distribution</h4>
+                                    <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2.5">Rating Distribution</h4>
                                     <div className="space-y-2">
                                         {distribution.map((item, index) => (
                                             <motion.div
