@@ -6,6 +6,7 @@ export async function POST(request: Request) {
         const { returnUrl } = await request.json();
 
         const session = await stripe.checkout.sessions.create({
+            ui_mode: "embedded",
             line_items: [
                 {
                     price_data: {
@@ -23,11 +24,10 @@ export async function POST(request: Request) {
                 },
             ],
             mode: "subscription",
-            success_url: `${returnUrl}?success=true`,
-            cancel_url: `${returnUrl}?canceled=true`,
+            return_url: `${returnUrl}?session_id={CHECKOUT_SESSION_ID}`,
         });
 
-        return NextResponse.json({ url: session.url });
+        return NextResponse.json({ clientSecret: session.client_secret });
     } catch (error) {
         console.error("Error creating checkout session:", error);
         return NextResponse.json(
